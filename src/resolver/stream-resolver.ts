@@ -30,7 +30,13 @@ export class StreamResolver {
     const subtitleTracks = manifest.files.filter((item) => /\.(srt|vtt|ass|ssa)$/i.test(item.name)).map((item) => item.name);
     const local = selectSubtitleFiles(manifest.files); const existing = new Set(local.map((item) => item.lang));
     const subtitles: SubtitleTrack[] = local.map((item, index) => ({ lang: item.lang, label: item.label, isDefault: item.lang === 'ara' || (!existing.has('ara') && item.lang === 'eng' && index === 0), url: `/v1/subtitles/${manifest.infoHash}/${item.file.index}`, source: 'torrent' as const, fileIndex: item.file.index }));
-    if (query.type !== 'music' && (!existing.has('ara') || !existing.has('eng'))) { try { subtitles.push(...await this.subtitleClient.search(query, existing)); } catch { /* optional provider failure does not break torrent playback */ } }
+    if (query.type !== 'music' && !subtitles.length) {
+      try {
+        const core = await this.subtitleClient.searchCore(query, existing);
+        subtitles.push(...core);
+        if (!core.length) subtitles.push(...await this.subtitleClient.search(query, existing));
+      } catch { /* optional provider failure does not break torrent playback */ }
+    }
     const defaultIndex = subtitles.findIndex((item) => item.lang === 'ara'); if (defaultIndex >= 0) subtitles.forEach((item, index) => { item.isDefault = index === defaultIndex; });
     return { sourceType: 'torrent', subtitles, candidate, infoHash: manifest.infoHash, streamId: handle.streamId, streamUrl: `/v1/torrents/${manifest.infoHash}/files/${file.index}/stream`, fileIndex: file.index, files: manifest.files, quality: candidate.quality, audioTracks, subtitleTracks };
   }

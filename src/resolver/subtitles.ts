@@ -14,11 +14,19 @@ export class OpenSubtitlesClient {
     private readonly timeoutMs = 4000,
   ) {}
 
-  async search(query: ResolverQuery, existing: Set<string>): Promise<SubtitleTrack[]> {
+  async searchCore(query: ResolverQuery, existing: Set<string>): Promise<SubtitleTrack[]> {
+    for (const language of ['ar', 'fr', 'en']) {
+      const tracks = await this.search(query, existing, language);
+      if (tracks.length) return tracks;
+    }
+    return [];
+  }
+
+  async search(query: ResolverQuery, existing: Set<string>, requestedLanguage?: string): Promise<SubtitleTrack[]> {
     if (!this.apiKey || query.type === 'music' || (!query.imdb_id && !query.tmdb_id)) return [];
     const headers = { accept: 'application/json', 'Api-Key': this.apiKey, 'User-Agent': 'Streamix_Hub v1.2.0' };
     const url = new URL(`${this.baseUrl}/subtitles`);
-    url.searchParams.set('languages', 'ar,en,fr,es,de');
+    url.searchParams.set('languages', requestedLanguage ?? 'ar,en,fr,es,de');
     url.searchParams.set('order_by', 'download_count');
     url.searchParams.set('order_direction', 'desc');
     if (query.type === 'series' && query.season !== undefined && query.episode !== undefined) {
@@ -33,10 +41,10 @@ export class OpenSubtitlesClient {
     const payload = await response.json() as SearchResponse;
     const results: SubtitleTrack[] = [];
     for (const item of payload.data ?? []) {
-      const attributes = item.attributes;
-      const lang = LANGUAGE_MAP[(attributes?.language ?? '').toLowerCase()] ?? '';
-      const file = attributes?.files?.[0];
-      if (!lang || !file?.file_id || existing.has(lang)) continue;
+      const rawLanguage = (item.attributes?.language ?? '').toLowerCase();
+      const lang = LANGUAGE_MAP[rawLanguage] ?? '';
+      const file = item.attributes?.files?.[0];
+      if (!lang || (requestedLanguage && lang !== LANGUAGE_MAP[requestedLanguage]) || !file?.file_id || existing.has(lang)) continue;
       const link = await this.download(file.file_id, headers);
       if (!link) continue;
       results.push({ lang, label: lang === 'ara' ? 'العربية' : lang === 'eng' ? 'English' : lang === 'fra' ? 'Français' : lang === 'spa' ? 'Español' : 'Deutsch', isDefault: lang === 'ara' && !existing.has('ara'), url: link, source: 'opensubtitles' });

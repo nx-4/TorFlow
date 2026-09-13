@@ -5,10 +5,17 @@ import { StaticIndexerClient } from '../src/resolver/torznab-client.js';
 import { TorrentManifest } from '../src/types.js';
 import { selectSubtitleFiles } from '../src/resolver/file-selector.js';
 import { OpenSubtitlesClient } from '../src/resolver/subtitles.js';
+import { parseTorrentioSeeders } from '../src/resolver/public-clients.js';
 
 const manifest = (hash: string): TorrentManifest => ({ infoHash: hash, name: 'movie', pieceLength: 100, pieceCount: 1, totalSize: 100, files: [{ index: 0, path: 'movie.mp4', name: 'movie.mp4', size: 100, mimeType: 'video/mp4', offset: 0, selected: false }] });
 
 describe('resolver ranking', () => {
+  it('parses Torrentio seeders from name and title metadata', () => {
+    expect(parseTorrentioSeeders('Torrentio 1080p', 'Movie 1080p 👤 63')).toBe(63);
+    expect(parseTorrentioSeeders('Movie 17 seeders', undefined)).toBe(17);
+    expect(parseTorrentioSeeders('Torrentio 4K', 'Movie')).toBe(0);
+  });
+
   it('parses query and prefers compatible quality while excluding dead torrents', () => {
     expect(queryText({ title: 'Dune', year: 2021, tmdb_id: '438631' })).toContain('Dune 2021');
     expect(parseQuality('Dune.2021.1080p.x264.AAC').videoCodec).toBe('h264');
@@ -90,6 +97,20 @@ describe('subtitle selection', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(tracks[0]).toMatchObject({ lang: 'ara', isDefault: true, source: 'opensubtitles', url: 'https://dl.opensubtitles.com/subtitle-987.vtt' });
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('imdb_id=1160419');
+    vi.unstubAllGlobals();
+  });
+
+  it('queries core subtitle languages in Arabic, French, English order', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ attributes: { language: 'fr', files: [{ file_id: 321 }] } }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ link: 'https://dl.opensubtitles.com/fr.vtt' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const tracks = await new OpenSubtitlesClient('test-key', 'https://api.test', 1000).searchCore({ title: 'Dune', imdb_id: 'tt1160419' }, new Set());
+    expect(tracks[0]).toMatchObject({ lang: 'fra', url: 'https://dl.opensubtitles.com/fr.vtt' });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('languages=ar');
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('languages=fr');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     vi.unstubAllGlobals();
   });
 });
