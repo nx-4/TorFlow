@@ -4,7 +4,7 @@ Streamix_Hub is a live WebTorrent-to-HTTP engine. It joins a WebTorrent swarm, r
 
 ## Configuration
 
-Copy `.env.example` to `.env`. Set `INDEXER_URL` to a Jackett/Prowlarr Torznab endpoint and `INDEXER_API_KEY` to its key. `RESOLVER_TIMEOUT_MS` defaults to 5000 milliseconds per candidate. `ALLOWED_ORIGINS` is a comma-separated CORS allowlist.
+Copy `.env.example` to `.env`. The resolver is autonomous by default: it queries built-in public YTS and Torrentio adapters without an API key or Jackett deployment. `INDEXER_URL` and `INDEXER_API_KEY` are optional; when both are present, Torznab results are added to the public results. `RESOLVER_TIMEOUT_MS` is capped at 5000 milliseconds. `ALLOWED_ORIGINS` is a comma-separated CORS allowlist.
 
 ## Automated resolver
 
@@ -20,7 +20,7 @@ TV example:
 { "title": "The Last of Us", "season": 1, "episode": 3, "imdb_id": "tt3581920" }
 ```
 
-The service queries the configured Torznab indexer, rejects candidates with fewer than 5 seeders, parses resolution/video/audio codec, and scores candidates using seed health plus player compatibility. It tries candidates in score order; if metadata or peers are unavailable within the timeout, it falls back automatically.
+The service queries the built-in public adapters first, optionally queries Torznab, rejects candidates with fewer than 5 seeders, parses resolution/video/audio codec, and scores candidates using seed health plus player compatibility. It tries candidates in score order; if a public source times out or metadata/peers are unavailable, it falls back automatically.
 
 Successful response:
 

@@ -4,7 +4,7 @@ import { ResolverQuery } from '../resolver/types.js';
 
 export function resolverController(resolver?: StreamResolver) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    if (!resolver) return reply.code(503).send({ error: 'Indexer is not configured. Set INDEXER_URL and INDEXER_API_KEY.' });
+    if (!resolver) return reply.code(503).send({ error: 'Resolver is temporarily unavailable' });
     const query = request.body as ResolverQuery;
     try {
       const result = await resolver.findStream(query);

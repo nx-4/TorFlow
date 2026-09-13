@@ -8,6 +8,7 @@ Cloud-ready, developer-focused **WebTorrent-to-HTTP streaming engine** built wit
 - Playback-first piece selection: header pieces, then a sequential look-ahead window, then the remaining pieces.
 - Standard `206 Partial Content` streaming compatible with Video.js, AVPlayer, ExoPlayer, Flutter, and React Native clients.
 - Dynamic `PORT`, `NODE_ENV`, and `ALLOWED_ORIGINS` configuration through dotenv.
+- Autonomous public resolver adapters for YTS movies and Torrentio streams; Jackett/Prowlarr is optional.
 - Docker and Render configuration included.
 
 ## Repository layout
@@ -86,7 +87,7 @@ For Render, connect the repository and use the included `render.yaml`. Set `ALLO
 
 ## Automated torrent resolver
 
-Set `INDEXER_URL` and `INDEXER_API_KEY` for a Jackett or Prowlarr Torznab endpoint. Then Streamix clients can go directly from TMDB/IMDb metadata to a playable URL:
+No indexer server is required. The resolver queries built-in public YTS and Torrentio adapters by default. Optionally set `INDEXER_URL` and `INDEXER_API_KEY` to add Jackett/Prowlarr Torznab results. Streamix clients can go directly from TMDB/IMDb metadata to a playable URL:
 
 ```ts
 const response = await fetch('https://api.example.com/v1/resolver/find-stream', {
