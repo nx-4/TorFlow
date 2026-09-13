@@ -40,10 +40,18 @@ export class AudioPublicClient implements IndexerClient {
   constructor(private readonly baseUrl = 'https://apibay.org', private readonly timeoutMs = 3500) {}
   async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> {
     if (query.type !== 'music') return [];
-    const text = queryText(query); const response = await fetch(`${this.baseUrl}/q.php?q=${encodeURIComponent(text)}`, { signal: timeoutSignal(this.timeoutMs, signal), headers: { accept: 'application/json' } });
-    if (!response.ok) throw new Error(`Audio indexer HTTP ${response.status}`);
-    const payload = await response.json() as Array<{ name?: string; info_hash?: string; seeders?: number; leechers?: number; size?: string }>;
-    return payload.map((item) => { const title = item.name ?? text; return { magnet: item.info_hash ? magnet(item.info_hash, title) : '', title, seeders: Number(item.seeders ?? 0), leechers: Number(item.leechers ?? 0), size: Number(item.size ?? 0), source: 'public-audio' }; }).filter((candidate) => candidate.magnet);
+    const detailed = queryText(query);
+    const broad = [query.artist, query.album, query.track, query.query].filter(Boolean).join(' ');
+    const search = async (text: string): Promise<TorrentCandidate[]> => {
+      const response = await fetch(`${this.baseUrl}/q.php?q=${encodeURIComponent(text)}`, { signal: timeoutSignal(this.timeoutMs, signal), headers: { accept: 'application/json' } });
+      if (!response.ok) throw new Error(`Audio indexer HTTP ${response.status}`);
+      const payload = await response.json() as Array<{ name?: string; info_hash?: string; seeders?: number; leechers?: number; size?: string }>;
+      return payload.map((item) => { const title = item.name ?? text; return { magnet: item.info_hash ? magnet(item.info_hash, title) : '', title, seeders: Number(item.seeders ?? 0), leechers: Number(item.leechers ?? 0), size: Number(item.size ?? 0), source: 'public-audio' }; }).filter((candidate) => candidate.magnet);
+    };
+    const first = await search(detailed);
+    const healthy = first.filter((candidate) => candidate.seeders >= 2);
+    if (healthy.length || !broad || broad === detailed) return first;
+    return [...first, ...(await search(broad))];
   }
 }
 

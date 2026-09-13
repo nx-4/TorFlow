@@ -44,8 +44,10 @@ describe('music resolver', () => {
     const ranked = rankCandidates([
       { magnet: 'magnet:?xt=urn:btih:mp3', title: 'Discovery 320kbps MP3', seeders: 40 },
       { magnet: 'magnet:?xt=urn:btih:flac', title: 'Discovery FLAC Lossless', seeders: 40 },
+      { magnet: 'magnet:?xt=urn:btih:low', title: 'Discovery AAC', seeders: 1 },
     ], { type: 'music', query: 'Daft Punk Discovery' });
     expect(ranked[0]?.quality.audioFormat).toBe('flac');
+    expect(rankCandidates([{ magnet: 'magnet:?xt=urn:btih:two', title: 'Discovery AAC', seeders: 2 }], { type: 'music', query: 'Discovery' })).toHaveLength(1);
     const engine = {
       registerManifest: async () => ({ infoHash: 'audio-hash', files: [
         { index: 0, path: 'cover.jpg', name: 'cover.jpg', size: 10, mimeType: 'image/jpeg', offset: 0, selected: false },

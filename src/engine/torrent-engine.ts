@@ -31,8 +31,14 @@ export class TorrentEngine extends EventEmitter {
     if ('magnet' in source) parseMagnet(source.magnet);
     return new Promise((resolve, reject) => {
       let settled = false;
+      let activeTorrent: WebTorrentTorrent | undefined;
+      const timer = setTimeout(() => {
+        activeTorrent?.destroy();
+        finish(new Error('WebTorrent metadata timeout: no metadata received from the swarm'));
+      }, 5000);
       const finish = (error?: Error, torrent?: WebTorrentTorrent) => {
         if (settled) return;
+        clearTimeout(timer);
         if (error || !torrent) { settled = true; reject(error ?? new Error('WebTorrent did not return metadata')); return; }
         const files: FileManifest[] = torrent.files.map((file, index) => ({
           index, path: file.path || file.name, name: file.name, size: file.length,
@@ -46,9 +52,9 @@ export class TorrentEngine extends EventEmitter {
         resolve(manifest);
       };
       try {
-        const torrent = this.client.add(torrentSource, (ready) => finish(undefined, ready));
-        torrent?.on?.('error', (error) => finish(error));
-        if (torrent?.files?.length) finish(undefined, torrent);
+        activeTorrent = this.client.add(torrentSource, (ready) => finish(undefined, ready));
+        activeTorrent?.on?.('error', (error) => finish(error));
+        if (activeTorrent?.files?.length) finish(undefined, activeTorrent);
       } catch (error) { finish(error as Error); }
     });
   }

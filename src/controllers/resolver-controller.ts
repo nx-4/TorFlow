@@ -9,6 +9,10 @@ export function resolverController(resolver?: StreamResolver) {
     try {
       const result = await resolver.findStream(query);
       return reply.send({ data: result });
-    } catch (error) { return reply.code(404).send({ error: (error as Error).message }); }
+    } catch (error) {
+      const message = (error as Error).message;
+      const status = /timeout|timed out|no active peers|swarm/i.test(message) ? 504 : 404;
+      return reply.code(status).send({ error: message, code: status === 504 ? 'SWARM_TIMEOUT' : 'NO_HEALTHY_RESULT' });
+    }
   };
 }
