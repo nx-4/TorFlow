@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: streamix-hub
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: '*'
+      - key: CACHE_DIR
+        value: /tmp/streamix-cache
+      - key: PORT
+        value: '8080'
