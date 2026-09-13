@@ -13,7 +13,7 @@ export class StreamResolver {
   async findStream(query: ResolverQuery): Promise<ResolverResult> {
     if (!(query.title?.trim() || query.query?.trim() || query.artist?.trim() || query.album?.trim() || query.track?.trim())) throw new Error('title, query, artist, album, or track is required');
     const ranked = rankCandidates(await this.indexer.search(query), query);
-    if (!ranked.length) throw new Error('No healthy compatible torrents found (seeders must be >= 5)');
+    if (!ranked.length) throw new Error(`No healthy compatible torrents found (seeders must be >= ${query.type === 'music' ? 2 : 5})`);
     const failures: string[] = [];
     for (const candidate of ranked) {
       try {

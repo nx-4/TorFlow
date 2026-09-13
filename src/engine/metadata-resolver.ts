@@ -30,6 +30,7 @@ export function parseMagnet(magnet: string): { infoHash: string; name?: string }
   const match = xt.match(/^urn:btih:([a-zA-Z0-9]+)$/);
   if (!match) throw new Error('Magnet URI must include an urn:btih identifier');
   const raw = match[1] ?? '';
+  if (/^0+$/.test(raw)) throw new Error('Invalid magnet info hash');
   const infoHash = /^[a-fA-F0-9]{40}$/.test(raw) ? raw.toLowerCase() : decodeBase32(raw).toString('hex');
   return { infoHash, name: params.get('dn') ?? undefined };
 }
