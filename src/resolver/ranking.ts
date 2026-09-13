@@ -28,7 +28,8 @@ export function queryText(query: ResolverQuery): string {
 
 export function rankCandidates(candidates: TorrentCandidate[], query?: ResolverQuery): RankedCandidate[] {
   const minimumSeeders = query?.type === 'music' ? 2 : 1;
-  return candidates.filter((candidate) => candidate.magnet.startsWith('magnet:?') && Number(candidate.seeders) >= minimumSeeders).map((candidate) => {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => { const key = candidate.magnet.toLowerCase(); if (!candidate.magnet.startsWith('magnet:?') || Number(candidate.seeders) < minimumSeeders || seen.has(key)) return false; seen.add(key); return true; }).map((candidate) => {
     const quality = query?.type === 'music' ? parseAudioQuality(candidate.title) : parseQuality(candidate.title);
     const seedScore = Math.min(100, Math.log10(candidate.seeders + 1) * 45);
     return { ...candidate, seeders: Number(candidate.seeders), quality, score: Number((seedScore + quality.score).toFixed(3)) };
