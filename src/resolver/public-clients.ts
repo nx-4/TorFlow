@@ -4,7 +4,8 @@ import { queryText } from './ranking.js';
 
 const TRACKERS = ['udp://open.stealth.si:80/announce', 'udp://tracker.opentrackr.org:1337/announce', 'udp://tracker.openbittorrent.com:6969/announce'];
 function timeoutSignal(ms: number, signal?: AbortSignal): AbortSignal { const timeout = AbortSignal.timeout(ms); return signal ? AbortSignal.any([signal, timeout]) : timeout; }
-function magnet(hash: string, name: string): string { const params = [`xt=urn:btih:${encodeURIComponent(hash)}`, `dn=${encodeURIComponent(name)}`]; for (const tracker of TRACKERS) params.push(`tr=${encodeURIComponent(tracker)}`); return `magnet:?${params.join('&')}`; }
+function magnet(hash: string, name: string): string { if (!/^(?:[a-f0-9]{40}|[a-z2-7]{32})$/i.test(hash)) return ''; const params = [`xt=urn:btih:${hash}`, `dn=${encodeURIComponent(name)}`]; for (const tracker of TRACKERS) params.push(`tr=${encodeURIComponent(tracker)}`); return `magnet:?${params.join('&')}`; }
+function normalizeMagnet(value: string, name: string): string { const decoded = decodeURIComponent(value); const match = decoded.match(/[?&]xt=urn:btih:([a-f0-9]{40}|[a-z2-7]{32})/i); return match?.[1] ? magnet(match[1], name) : ''; }
 function isVideo(query: ResolverQuery): boolean { return query.type !== 'music'; }
 function parseHtmlResults(html: string, source: string, fallback: string): TorrentCandidate[] {
   const results: TorrentCandidate[] = []; const seen = new Set<string>();
@@ -13,7 +14,7 @@ function parseHtmlResults(html: string, source: string, fallback: string): Torre
     const match = raw.match(/xt=urn%3Abtih%3A([^&]+)|xt=urn:btih:([^&]+)/i); const hash = match?.[1] ?? match?.[2]; if (!hash || seen.has(hash.toLowerCase())) continue;
     seen.add(hash.toLowerCase()); const title = decodeURIComponent(raw.match(/[?&]dn=([^&]+)/i)?.[1] ?? fallback).replace(/[+]/g, ' ');
     const context = html.slice(Math.max(0, html.indexOf(raw) - 180), html.indexOf(raw) + raw.length + 180); const seeders = Number(context.match(/(?:seed(?:s|ers)?|👤)[^0-9]{0,12}(\d+)/i)?.[1] ?? 0);
-    results.push({ magnet: raw, title, seeders, source });
+    const normalized = normalizeMagnet(raw, title); if (normalized) results.push({ magnet: normalized, title, seeders, source });
   }
   return results;
 }
@@ -31,7 +32,7 @@ export class YtsClient implements IndexerClient {
 
 export class TorrentioClient implements IndexerClient {
   constructor(private readonly baseUrl = 'https://torrentio.strem.fun', private readonly timeoutMs = 3000) {}
-  async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> { if (query.type === 'music') return []; const kind = query.season !== undefined || query.episode !== undefined ? 'series' : 'movie'; const id = query.imdb_id ?? (query.tmdb_id ? `tmdb:${query.tmdb_id}` : encodeURIComponent(query.title ?? query.query ?? '')); const suffix = kind === 'series' ? `:${query.season ?? 1}:${query.episode ?? 1}` : ''; const response = await fetch(`${this.baseUrl}/stream/${kind}/${id}${suffix}.json`, { signal: timeoutSignal(this.timeoutMs, signal), headers: { accept: 'application/json' } }); if (!response.ok) throw new Error(`Torrentio HTTP ${response.status}`); const payload = await response.json() as { streams?: Array<{ name?: string; title?: string; url?: string; infoHash?: string }> }; return (payload.streams ?? []).map((stream) => { const title = stream.name ?? stream.title ?? 'Torrentio result'; const hash = stream.infoHash ?? stream.url?.match(/urn:btih:([^&/]+)/i)?.[1]; const seedMatch = title.match(/(?:👤|seed(?:s|ers)?[: ]*)\s*(\d+)/i); return { magnet: hash ? magnet(hash, title) : (stream.url?.startsWith('magnet:?') ? stream.url : ''), title, seeders: Number(seedMatch?.[1] ?? 0), source: 'torrentio' }; }).filter((candidate) => candidate.magnet); }
+  async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> { if (query.type === 'music') return []; const kind = query.season !== undefined || query.episode !== undefined ? 'series' : 'movie'; const id = query.imdb_id ?? (query.tmdb_id ? `tmdb:${query.tmdb_id}` : encodeURIComponent(query.title ?? query.query ?? '')); const suffix = kind === 'series' ? `:${query.season ?? 1}:${query.episode ?? 1}` : ''; const response = await fetch(`${this.baseUrl}/stream/${kind}/${id}${suffix}.json`, { signal: timeoutSignal(this.timeoutMs, signal), headers: { accept: 'application/json' } }); if (!response.ok) throw new Error(`Torrentio HTTP ${response.status}`); const payload = await response.json() as { streams?: Array<{ name?: string; title?: string; url?: string; infoHash?: string }> }; return (payload.streams ?? []).map((stream) => { const title = stream.name ?? stream.title ?? 'Torrentio result'; const hash = stream.infoHash ?? stream.url?.match(/urn:btih:([^&/]+)/i)?.[1]; const seedMatch = title.match(/(?:👤|seed(?:s|ers)?[: ]*)\s*(\d+)/i); const candidateMagnet = hash ? magnet(hash, title) : (stream.url?.startsWith('magnet:?') ? normalizeMagnet(stream.url, title) : ''); return { magnet: candidateMagnet, title, seeders: Number(seedMatch?.[1] ?? 0), source: 'torrentio' }; }).filter((candidate) => candidate.magnet); }
 }
 
 class HtmlTorrentClient implements IndexerClient {
