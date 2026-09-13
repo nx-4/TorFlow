@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { rankCandidates, parseAudioQuality, parseQuality, queryText } from '../src/resolver/ranking.js';
 import { StreamResolver } from '../src/resolver/stream-resolver.js';
 import { StaticIndexerClient } from '../src/resolver/torznab-client.js';
 import { TorrentManifest } from '../src/types.js';
 import { selectSubtitleFiles } from '../src/resolver/file-selector.js';
+import { OpenSubtitlesClient } from '../src/resolver/subtitles.js';
 
 const manifest = (hash: string): TorrentManifest => ({ infoHash: hash, name: 'movie', pieceLength: 100, pieceCount: 1, totalSize: 100, files: [{ index: 0, path: 'movie.mp4', name: 'movie.mp4', size: 100, mimeType: 'video/mp4', offset: 0, selected: false }] });
 
@@ -78,5 +79,17 @@ describe('subtitle selection', () => {
       { index: 2, path: 'movie.fra.vtt', name: 'movie.fra.vtt', size: 10, mimeType: 'text/vtt', offset: 20, selected: false },
     ]);
     expect(tracks.map((track) => track.lang)).toEqual(['ara', 'eng', 'fra']);
+  });
+
+  it('queries OpenSubtitles and marks Arabic as the default external track', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ attributes: { language: 'ara', files: [{ file_id: 987 }] } }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ link: 'https://dl.opensubtitles.com/subtitle-987.vtt' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const tracks = await new OpenSubtitlesClient('test-key', 'https://api.test', 1000).search({ title: 'Dune', imdb_id: 'tt1160419' }, new Set());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(tracks[0]).toMatchObject({ lang: 'ara', isDefault: true, source: 'opensubtitles', url: 'https://dl.opensubtitles.com/subtitle-987.vtt' });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('imdb_id=1160419');
+    vi.unstubAllGlobals();
   });
 });

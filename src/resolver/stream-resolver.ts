@@ -2,13 +2,13 @@ import { TorrentEngine } from '../engine/torrent-engine.js';
 import { rankCandidates } from './ranking.js';
 import { IndexerClient } from './torznab-client.js';
 import { selectSubtitleFiles, SubtitleTrack } from './file-selector.js';
-import { WyzieSubtitleClient } from './subtitles.js';
+import { OpenSubtitlesClient } from './subtitles.js';
 import { RankedCandidate, ResolverQuery, ResolverResult } from './types.js';
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> { return Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs))]); }
 
 export class StreamResolver {
-  constructor(private readonly indexer: IndexerClient, private readonly engine: TorrentEngine, private readonly perCandidateTimeoutMs = 5000, private readonly subtitleClient = new WyzieSubtitleClient()) {}
+  constructor(private readonly indexer: IndexerClient, private readonly engine: TorrentEngine, private readonly perCandidateTimeoutMs = 5000, private readonly subtitleClient = new OpenSubtitlesClient()) {}
 
   async findStream(query: ResolverQuery): Promise<ResolverResult> {
     if (!(query.title?.trim() || query.query?.trim() || query.artist?.trim() || query.album?.trim() || query.track?.trim() || query.imdb_id || query.tmdb_id)) throw new Error('title, query, artist, album, track, imdb_id, or tmdb_id is required');

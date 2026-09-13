@@ -9,7 +9,7 @@ import { registerRoutes } from './routes/index.js';
 import { StreamResolver } from './resolver/stream-resolver.js';
 import { TorznabClient } from './resolver/torznab-client.js';
 import { MultiIndexerClient, createPublicIndexer } from './resolver/public-clients.js';
-import { WyzieSubtitleClient } from './resolver/subtitles.js';
+import { OpenSubtitlesClient } from './resolver/subtitles.js';
 
 export async function buildApp() {
   const config = loadConfig();
@@ -26,7 +26,7 @@ export async function buildApp() {
   const engine = new TorrentEngine();
   const publicIndexer = createPublicIndexer(Math.min(config.resolverTimeoutMs, 3000));
   const indexer = config.indexerUrl && config.indexerApiKey ? new MultiIndexerClient([publicIndexer, new TorznabClient(config.indexerUrl, config.indexerApiKey, config.resolverTimeoutMs)]) : publicIndexer;
-  const resolver = new StreamResolver(indexer, engine, Math.min(config.resolverTimeoutMs, 8000), new WyzieSubtitleClient(config.wyzieApiKey));
+  const resolver = new StreamResolver(indexer, engine, Math.min(config.resolverTimeoutMs, 8000), new OpenSubtitlesClient(config.openSubtitlesApiKey));
   await registerRoutes(app, engine, resolver);
   app.decorate('streamix', { engine, cache, config });
   return app;
