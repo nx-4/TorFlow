@@ -9,6 +9,10 @@ export function metadataController(engine: TorrentEngine) {
     try {
       const manifest = await engine.inspect(body?.magnet ? { magnet: body.magnet } : { torrentBuffer: torrent!.buffer });
       return reply.send({ data: manifest });
-    } catch (error) { return reply.code(422).send({ error: (error as Error).message }); }
+    } catch (error) {
+      const message = (error as Error).message;
+      const status = /timeout|timed out|swarm|peer/i.test(message) ? 504 : 422;
+      return reply.code(status).send({ error: message, code: status === 504 ? 'SWARM_TIMEOUT' : 'INVALID_TORRENT' });
+    }
   };
 }

@@ -8,7 +8,7 @@ import { parseMagnet } from './metadata-resolver.js';
 
 type WebTorrentFile = { name: string; path: string; length: number; offset?: number; createReadStream: (options?: { start?: number; end?: number }) => NodeJS.ReadableStream };
 type WebTorrentTorrent = { infoHash: string; name: string; pieceLength: number; pieces: string[]; files: WebTorrentFile[]; downloaded: number; uploaded: number; numPeers: number; progress: number; select: (start: number, end: number, priority?: number) => void; deselect: (start: number, end: number, priority?: number) => void; destroy: (callback?: (error?: Error) => void) => void; on?: (event: string, listener: (error: Error) => void) => void };
-type WebTorrentClient = { add: (source: unknown, callback?: (torrent: WebTorrentTorrent) => void) => WebTorrentTorrent; destroy: (callback?: (error?: Error) => void) => void };
+type WebTorrentClient = { add: (source: unknown, callback?: (torrent: WebTorrentTorrent) => void) => WebTorrentTorrent; destroy: (callback?: (error?: Error) => void) => void; on?: (event: string, listener: (error: Error) => void) => void; off?: (event: string, listener: (error: Error) => void) => void };
 
 export class TorrentEngine extends EventEmitter {
   private manifests = new Map<string, TorrentManifest>();
@@ -32,13 +32,15 @@ export class TorrentEngine extends EventEmitter {
     return new Promise((resolve, reject) => {
       let settled = false;
       let activeTorrent: WebTorrentTorrent | undefined;
+      const clientError = (error: Error) => finish(error);
       const timer = setTimeout(() => {
-        activeTorrent?.destroy();
+        try { activeTorrent?.destroy(); } catch { /* cleanup must not mask the timeout */ }
         finish(new Error('WebTorrent metadata timeout: no metadata received from the swarm'));
       }, 5000);
       const finish = (error?: Error, torrent?: WebTorrentTorrent) => {
         if (settled) return;
         clearTimeout(timer);
+        this.client.off?.('error', clientError);
         if (error || !torrent) { settled = true; reject(error ?? new Error('WebTorrent did not return metadata')); return; }
         const files: FileManifest[] = torrent.files.map((file, index) => ({
           index, path: file.path || file.name, name: file.name, size: file.length,
@@ -52,6 +54,7 @@ export class TorrentEngine extends EventEmitter {
         resolve(manifest);
       };
       try {
+        this.client.on?.('error', clientError);
         activeTorrent = this.client.add(torrentSource, (ready) => finish(undefined, ready));
         activeTorrent?.on?.('error', (error) => finish(error));
         if (activeTorrent?.files?.length) finish(undefined, activeTorrent);
