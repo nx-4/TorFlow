@@ -1,0 +1,39 @@
+import { describe, expect, it } from 'vitest';
+import { rankCandidates, parseQuality, queryText } from '../src/resolver/ranking.js';
+import { StreamResolver } from '../src/resolver/stream-resolver.js';
+import { StaticIndexerClient } from '../src/resolver/torznab-client.js';
+import { TorrentManifest } from '../src/types.js';
+
+const manifest = (hash: string): TorrentManifest => ({ infoHash: hash, name: 'movie', pieceLength: 100, pieceCount: 1, totalSize: 100, files: [{ index: 0, path: 'movie.mp4', name: 'movie.mp4', size: 100, mimeType: 'video/mp4', offset: 0, selected: false }] });
+
+describe('resolver ranking', () => {
+  it('parses query and prefers compatible quality while excluding dead torrents', () => {
+    expect(queryText({ title: 'Dune', year: 2021, tmdb_id: '438631' })).toContain('Dune 2021');
+    expect(parseQuality('Dune.2021.1080p.x264.AAC').videoCodec).toBe('h264');
+    const ranked = rankCandidates([
+      { magnet: 'magnet:?xt=urn:btih:dead', title: 'Dune 4K AV1', seeders: 2 },
+      { magnet: 'magnet:?xt=urn:btih:a', title: 'Dune 720p x264 AAC', seeders: 50 },
+      { magnet: 'magnet:?xt=urn:btih:b', title: 'Dune 1080p HEVC', seeders: 60 },
+    ]);
+    expect(ranked).toHaveLength(2);
+    expect(ranked[0]?.title).toBe('Dune 720p x264 AAC');
+  });
+});
+
+describe('resolver fallback', () => {
+  it('tries the next candidate after the primary fails', async () => {
+    const calls: string[] = [];
+    const engine = {
+      registerManifest: async ({ magnet }: { magnet: string }) => { calls.push(magnet); if (magnet.includes('bad')) throw new Error('metadata timeout'); return manifest('good-hash'); },
+      waitForPeers: async () => undefined,
+      openStream: async () => ({ streamId: 'stream_1' }),
+    } as never;
+    const resolver = new StreamResolver(new StaticIndexerClient([
+      { magnet: 'magnet:?xt=urn:btih:bad', title: 'Movie 1080p x264', seeders: 100 },
+      { magnet: 'magnet:?xt=urn:btih:good', title: 'Movie 720p x264 AAC', seeders: 20 },
+    ]), engine, 500);
+    const result = await resolver.findStream({ title: 'Movie' });
+    expect(calls).toEqual(['magnet:?xt=urn:btih:bad', 'magnet:?xt=urn:btih:good']);
+    expect(result.streamId).toBe('stream_1');
+  });
+});

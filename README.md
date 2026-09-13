@@ -83,3 +83,26 @@ docker run --rm -p 8080:8080 --env-file .env streamix-hub
 For Render, connect the repository and use the included `render.yaml`. Set `ALLOWED_ORIGINS` to a comma-separated list of trusted web origins; use `*` only for public development APIs.
 
 > Legal note: use the engine only with content you are authorized to access and distribute.
+
+## Automated torrent resolver
+
+Set `INDEXER_URL` and `INDEXER_API_KEY` for a Jackett or Prowlarr Torznab endpoint. Then Streamix clients can go directly from TMDB/IMDb metadata to a playable URL:
+
+```ts
+const response = await fetch('https://api.example.com/v1/resolver/find-stream', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ title: 'Dune', year: 2021, tmdb_id: '438631' })
+});
+const { data } = await response.json();
+const playableUrl = new URL(data.streamUrl, 'https://api.example.com').toString();
+// data.quality, data.audioTracks, data.subtitleTracks are ready for the player UI.
+```
+
+For series, send `season`, `episode`, and optionally `imdb_id`. The resolver filters out torrents below 5 seeders, prefers H.264/x264 and mobile-friendly audio, ranks by seed health plus quality, and retries the next candidate when metadata or peers do not arrive within `RESOLVER_TIMEOUT_MS`.
+
+```bash
+curl -X POST https://api.example.com/v1/resolver/find-stream \
+  -H 'content-type: application/json' \
+  -d '{"title":"The Last of Us","season":1,"episode":3,"imdb_id":"tt3581920"}'
+```

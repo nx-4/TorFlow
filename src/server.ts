@@ -6,6 +6,8 @@ import { loadConfig } from './config.js';
 import { CacheManager } from './engine/cache-manager.js';
 import { TorrentEngine } from './engine/torrent-engine.js';
 import { registerRoutes } from './routes/index.js';
+import { StreamResolver } from './resolver/stream-resolver.js';
+import { TorznabClient } from './resolver/torznab-client.js';
 
 export async function buildApp() {
   const config = loadConfig();
@@ -20,7 +22,9 @@ export async function buildApp() {
   const cache = new CacheManager(config.cacheDir, config.cacheMaxBytes, config.cacheTtlSeconds * 1000);
   await cache.init();
   const engine = new TorrentEngine();
-  await registerRoutes(app, engine);
+  const indexer = config.indexerUrl && config.indexerApiKey ? new TorznabClient(config.indexerUrl, config.indexerApiKey, config.resolverTimeoutMs) : undefined;
+  const resolver = indexer ? new StreamResolver(indexer, engine, config.resolverTimeoutMs) : undefined;
+  await registerRoutes(app, engine, resolver);
   app.decorate('streamix', { engine, cache, config });
   return app;
 }

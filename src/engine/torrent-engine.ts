@@ -53,6 +53,14 @@ export class TorrentEngine extends EventEmitter {
   registerParsedManifest(manifest: TorrentManifest): void { this.manifests.set(manifest.infoHash, manifest); }
   getManifest(infoHash: string): TorrentManifest | undefined { return this.manifests.get(infoHash); }
 
+  async waitForPeers(infoHash: string, timeoutMs = 5000): Promise<void> {
+    const torrent = this.torrents.get(infoHash);
+    if (!torrent) return;
+    const deadline = Date.now() + timeoutMs;
+    while (torrent.numPeers < 1 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 100));
+    if (torrent.numPeers < 1) throw new Error('No active peers available');
+  }
+
   async openStream(infoHash: string, fileIndex: number): Promise<StreamHandle> {
     const manifest = this.manifests.get(infoHash);
     if (!manifest) throw new Error('Torrent metadata is not loaded');
