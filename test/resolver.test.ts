@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rankCandidates, parseQuality, queryText } from '../src/resolver/ranking.js';
+import { rankCandidates, parseAudioQuality, parseQuality, queryText } from '../src/resolver/ranking.js';
 import { StreamResolver } from '../src/resolver/stream-resolver.js';
 import { StaticIndexerClient } from '../src/resolver/torznab-client.js';
 import { TorrentManifest } from '../src/types.js';
@@ -35,5 +35,26 @@ describe('resolver fallback', () => {
     const result = await resolver.findStream({ title: 'Movie' });
     expect(calls).toEqual(['magnet:?xt=urn:btih:bad', 'magnet:?xt=urn:btih:good']);
     expect(result.streamId).toBe('stream_1');
+  });
+});
+
+describe('music resolver', () => {
+  it('prefers FLAC and selects an individual playable audio file', async () => {
+    expect(parseAudioQuality('Daft Punk Discovery FLAC 24bit').audioFormat).toBe('flac');
+    const ranked = rankCandidates([
+      { magnet: 'magnet:?xt=urn:btih:mp3', title: 'Discovery 320kbps MP3', seeders: 40 },
+      { magnet: 'magnet:?xt=urn:btih:flac', title: 'Discovery FLAC Lossless', seeders: 40 },
+    ], { type: 'music', query: 'Daft Punk Discovery' });
+    expect(ranked[0]?.quality.audioFormat).toBe('flac');
+    const engine = {
+      registerManifest: async () => ({ infoHash: 'audio-hash', files: [
+        { index: 0, path: 'cover.jpg', name: 'cover.jpg', size: 10, mimeType: 'image/jpeg', offset: 0, selected: false },
+        { index: 1, path: 'track.flac', name: 'track.flac', size: 100, mimeType: 'audio/flac', offset: 10, selected: false },
+      ] }), waitForPeers: async () => undefined, openStream: async (_hash: string, fileIndex: number) => ({ streamId: `audio_stream_${fileIndex}` }),
+    } as never;
+    const resolver = new StreamResolver(new StaticIndexerClient([{ magnet: 'magnet:?xt=urn:btih:flac', title: 'Discovery FLAC', seeders: 40 }]), engine, 500);
+    const result = await resolver.findStream({ type: 'music', artist: 'Daft Punk', album: 'Discovery' });
+    expect(result.fileIndex).toBe(1);
+    expect(result.streamUrl).toBe('/v1/torrents/audio-hash/files/1/stream');
   });
 });

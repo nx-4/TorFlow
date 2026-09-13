@@ -1,5 +1,10 @@
 export interface ResolverQuery {
-  title: string;
+  title?: string;
+  type?: 'movie' | 'series' | 'music';
+  query?: string;
+  artist?: string;
+  album?: string;
+  track?: string;
   year?: number;
   season?: number;
   episode?: number;
@@ -22,6 +27,8 @@ export interface QualityMetadata {
   videoCodec: 'h264' | 'hevc' | 'av1' | 'vp9' | 'unknown';
   audioCodec: 'aac' | 'mp3' | 'ac3' | 'eac3' | 'opus' | 'unknown';
   score: number;
+  audioFormat?: 'flac' | 'alac' | 'mp3-320' | 'aac' | 'opus' | 'wav' | 'unknown';
+  bitrateKbps?: number;
 }
 
 export interface RankedCandidate extends TorrentCandidate {

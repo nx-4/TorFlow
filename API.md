@@ -20,6 +20,14 @@ TV example:
 { "title": "The Last of Us", "season": 1, "episode": 3, "imdb_id": "tt3581920" }
 ```
 
+Music example:
+
+```json
+{ "type": "music", "query": "Daft Punk Discovery", "artist": "Daft Punk", "album": "Discovery" }
+```
+
+For music, the built-in audio adapter searches public torrent JSON results, filters out candidates below 5 seeders, and prefers FLAC, ALAC, WAV, 320kbps MP3, AAC, and Opus in that order. The resolver inspects the returned torrent manifest and selects the individual `.mp3`, `.flac`, `.m4a`, `.aac`, `.wav`, `.ogg`, `.opus`, or `.alac` file rather than a cover image or unrelated file.
+
 The service queries the built-in public adapters first, optionally queries Torznab, rejects candidates with fewer than 5 seeders, parses resolution/video/audio codec, and scores candidates using seed health plus player compatibility. It tries candidates in score order; if a public source times out or metadata/peers are unavailable, it falls back automatically.
 
 Successful response:

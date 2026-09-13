@@ -102,6 +102,17 @@ const playableUrl = new URL(data.streamUrl, 'https://api.example.com').toString(
 
 For series, send `season`, `episode`, and optionally `imdb_id`. The resolver filters out torrents below 5 seeders, prefers H.264/x264 and mobile-friendly audio, ranks by seed health plus quality, and retries the next candidate when metadata or peers do not arrive within `RESOLVER_TIMEOUT_MS`.
 
+For music, send `type: "music"` with any combination of generic query, artist, album, and track. The audio ranking prefers lossless FLAC/ALAC/WAV, then 320kbps MP3, AAC, and Opus, and chooses the best playable audio file inside the selected torrent:
+
+```ts
+const response = await fetch('https://api.example.com/v1/resolver/find-stream', {
+  method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ type: 'music', query: 'Daft Punk Discovery', artist: 'Daft Punk', album: 'Discovery' })
+});
+const audio = await response.json();
+// audio.data.streamUrl is an HTTP Range-compatible .flac/.mp3/.m4a stream.
+```
+
 ```bash
 curl -X POST https://api.example.com/v1/resolver/find-stream \
   -H 'content-type: application/json' \

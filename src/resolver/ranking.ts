@@ -12,15 +12,23 @@ export function parseQuality(title: string): QualityMetadata {
   return { resolution, videoCodec, audioCodec, score: resolutionScore[resolution] + codecScore[videoCodec] + audioScore[audioCodec] };
 }
 
+export function parseAudioQuality(title: string): QualityMetadata {
+  const normalized = title.toLowerCase();
+  const audioFormat = normalized.includes('flac') ? 'flac' : normalized.includes('alac') ? 'alac' : normalized.includes('320') || normalized.includes('320kbps') ? 'mp3-320' : normalized.includes('aac') ? 'aac' : normalized.includes('opus') ? 'opus' : normalized.includes('wav') ? 'wav' : 'unknown';
+  const bitrateMatch = normalized.match(/(\d{2,4})\s*kbps/);
+  const bitrateKbps = bitrateMatch ? Number(bitrateMatch[1]) : audioFormat === 'mp3-320' ? 320 : undefined;
+  const formatScore: Record<NonNullable<QualityMetadata['audioFormat']>, number> = { flac: 60, alac: 55, 'mp3-320': 48, aac: 36, opus: 34, wav: 52, unknown: 0 };
+  return { resolution: 'unknown', videoCodec: 'unknown', audioCodec: audioFormat === 'mp3-320' ? 'mp3' : audioFormat === 'opus' ? 'opus' : audioFormat === 'aac' ? 'aac' : 'unknown', audioFormat, bitrateKbps, score: formatScore[audioFormat] + Math.min(25, Math.round((bitrateKbps ?? 0) / 32)) };
+}
+
 export function queryText(query: ResolverQuery): string {
-  const parts = [query.title.trim(), query.year, query.season !== undefined ? `S${String(query.season).padStart(2, '0')}` : undefined, query.episode !== undefined ? `E${String(query.episode).padStart(2, '0')}` : undefined, query.imdb_id, query.tmdb_id];
+  const parts = [query.query, query.title, query.artist, query.album, query.track, query.year, query.season !== undefined ? `S${String(query.season).padStart(2, '0')}` : undefined, query.episode !== undefined ? `E${String(query.episode).padStart(2, '0')}` : undefined, query.imdb_id, query.tmdb_id];
   return parts.filter(Boolean).join(' ');
 }
 
 export function rankCandidates(candidates: TorrentCandidate[], query?: ResolverQuery): RankedCandidate[] {
-  void query;
   return candidates.filter((candidate) => candidate.magnet.startsWith('magnet:?') && Number(candidate.seeders) >= 5).map((candidate) => {
-    const quality = parseQuality(candidate.title);
+    const quality = query?.type === 'music' ? parseAudioQuality(candidate.title) : parseQuality(candidate.title);
     const seedScore = Math.min(100, Math.log10(candidate.seeders + 1) * 45);
     return { ...candidate, seeders: Number(candidate.seeders), quality, score: Number((seedScore + quality.score).toFixed(3)) };
   }).sort((a, b) => b.score - a.score || b.seeders - a.seeders);

@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const MIME: Record<string, string> = {
   '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm',
-  '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.wav': 'audio/wav',
+  '.mp3': 'audio/mpeg', '.flac': 'audio/flac', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.opus': 'audio/opus', '.alac': 'audio/alac',
   '.m3u8': 'application/vnd.apple.mpegurl', '.ts': 'video/mp2t',
 };
 
