@@ -62,9 +62,9 @@ Resolver responses include a prioritized `subtitles` array. Arabic (`ara`) is se
 ]
 ```
 
-When `WYZIE_API_KEY` is configured, missing Arabic or major-language tracks are queried from Wyzie using IMDb/TMDB and episode identifiers. The key remains server-side and is optional; without it the engine still serves all subtitles found inside the torrent.
+When `WYZIE_API_KEY` is configured, missing Arabic or major-language tracks are queried from Wyzie using IMDb/TMDB and episode identifiers. The key remains server-side; without it the engine still serves all subtitles found inside the torrent, but cannot provide external fallback tracks.
 
-Public providers are queried in parallel with a maximum 3-second timeout per provider. For movies and series with an IMDb/TMDB identifier, if no healthy torrent remains or all torrent candidates fail, the response may use `sourceType: "embed"` and return a public embed URL such as `https://vidsrc.to/embed/movie/tt1160419`. Music never uses embed fallback.
+Public providers are queried in parallel with a maximum 3-second timeout per provider. Streamix_Hub is strictly torrent-only: every successful response has `sourceType: "torrent"`; if no healthy torrent remains or all candidates fail, the API returns `404` with `code: "NO_HEALTHY_TORRENT"`. No third-party ad-supported embed URL is returned.
 
 ## Metadata and streaming
 

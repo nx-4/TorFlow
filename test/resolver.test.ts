@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { rankCandidates, parseAudioQuality, parseQuality, queryText } from '../src/resolver/ranking.js';
 import { StreamResolver } from '../src/resolver/stream-resolver.js';
 import { StaticIndexerClient } from '../src/resolver/torznab-client.js';
-import { PublicEmbedFallback } from '../src/resolver/embed-fallback.js';
 import { TorrentManifest } from '../src/types.js';
 import { selectSubtitleFiles } from '../src/resolver/file-selector.js';
 
@@ -64,12 +63,10 @@ describe('music resolver', () => {
 });
 
 
-describe('embed fallback', () => {
-  it('returns an embed URL when no healthy torrent exists', async () => {
-    const resolver = new StreamResolver(new StaticIndexerClient([]), {} as never, 100, new PublicEmbedFallback(true));
-    const result = await resolver.findStream({ title: 'Dune', imdb_id: 'tt1160419' });
-    expect(result.sourceType).toBe('embed');
-    expect(result.streamUrl).toContain('/embed/movie/tt1160419');
+describe('torrent-only policy', () => {
+  it('returns NO_HEALTHY_TORRENT when no healthy torrent exists', async () => {
+    const resolver = new StreamResolver(new StaticIndexerClient([]), {} as never, 100);
+    await expect(resolver.findStream({ title: 'Dune', imdb_id: 'tt1160419' })).rejects.toThrow('No healthy torrent');
   });
 });
 

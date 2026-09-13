@@ -12,7 +12,7 @@ export function resolverController(resolver?: StreamResolver) {
     } catch (error) {
       const message = (error as Error).message;
       const status = /timeout|timed out|no active peers|swarm/i.test(message) ? 504 : 404;
-      return reply.code(status).send({ error: message, code: status === 504 ? 'SWARM_TIMEOUT' : 'NO_HEALTHY_RESULT' });
+      return reply.code(status).send({ error: message, code: status === 504 ? 'SWARM_TIMEOUT' : 'NO_HEALTHY_TORRENT' });
     }
   };
 }
