@@ -24,7 +24,7 @@ export async function buildApp() {
   const cache = new CacheManager(config.cacheDir, config.cacheMaxBytes, config.cacheTtlSeconds * 1000);
   await cache.init();
   const engine = new TorrentEngine();
-  const publicIndexer = createPublicIndexer(Math.min(config.resolverTimeoutMs, 3000));
+  const publicIndexer = createPublicIndexer(Math.min(config.resolverTimeoutMs, 5000));
   const indexer = config.indexerUrl && config.indexerApiKey ? new MultiIndexerClient([publicIndexer, new TorznabClient(config.indexerUrl, config.indexerApiKey, config.resolverTimeoutMs)]) : publicIndexer;
   const resolver = new StreamResolver(indexer, engine, Math.min(config.resolverTimeoutMs, 8000), new OpenSubtitlesClient(config.openSubtitlesApiKey));
   await registerRoutes(app, engine, resolver);

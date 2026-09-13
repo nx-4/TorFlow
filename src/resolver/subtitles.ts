@@ -1,7 +1,7 @@
 import { ResolverQuery } from './types.js';
 import { SubtitleTrack } from './file-selector.js';
 
-const TARGETS = new Set(['ara', 'eng', 'fra', 'spa', 'deu']);
+const LANGUAGE_MAP: Record<string, string> = { ar: 'ara', en: 'eng', fr: 'fra', es: 'spa', de: 'deu', ara: 'ara', eng: 'eng', fra: 'fra', spa: 'spa', deu: 'deu' };
 type OpenSubtitleFile = { file_id?: number; file_name?: string };
 type OpenSubtitleItem = { attributes?: { language?: string; release?: string; files?: OpenSubtitleFile[] } };
 type SearchResponse = { data?: OpenSubtitleItem[] };
@@ -34,9 +34,9 @@ export class OpenSubtitlesClient {
     const results: SubtitleTrack[] = [];
     for (const item of payload.data ?? []) {
       const attributes = item.attributes;
-      const lang = (attributes?.language ?? '').toLowerCase().slice(0, 3);
+      const lang = LANGUAGE_MAP[(attributes?.language ?? '').toLowerCase()] ?? '';
       const file = attributes?.files?.[0];
-      if (!TARGETS.has(lang) || !file?.file_id || existing.has(lang)) continue;
+      if (!lang || !file?.file_id || existing.has(lang)) continue;
       const link = await this.download(file.file_id, headers);
       if (!link) continue;
       results.push({ lang, label: lang === 'ara' ? 'العربية' : lang === 'eng' ? 'English' : lang === 'fra' ? 'Français' : lang === 'spa' ? 'Español' : 'Deutsch', isDefault: lang === 'ara' && !existing.has('ara'), url: link, source: 'opensubtitles' });
