@@ -26,7 +26,7 @@ export async function buildApp() {
   const engine = new TorrentEngine();
   const publicIndexer = createPublicIndexer(Math.min(config.resolverTimeoutMs, 3000));
   const indexer = config.indexerUrl && config.indexerApiKey ? new MultiIndexerClient([publicIndexer, new TorznabClient(config.indexerUrl, config.indexerApiKey, config.resolverTimeoutMs)]) : publicIndexer;
-  const resolver = new StreamResolver(indexer, engine, config.resolverTimeoutMs, new WyzieSubtitleClient(config.wyzieApiKey));
+  const resolver = new StreamResolver(indexer, engine, Math.min(config.resolverTimeoutMs, 8000), new WyzieSubtitleClient(config.wyzieApiKey));
   await registerRoutes(app, engine, resolver);
   app.decorate('streamix', { engine, cache, config });
   return app;

@@ -3,6 +3,8 @@ services:
     name: streamix-hub
     runtime: docker
     plan: free
+    branch: master
+    autoDeploy: true
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV

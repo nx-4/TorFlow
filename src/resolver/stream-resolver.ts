@@ -13,7 +13,7 @@ export class StreamResolver {
   async findStream(query: ResolverQuery): Promise<ResolverResult> {
     if (!(query.title?.trim() || query.query?.trim() || query.artist?.trim() || query.album?.trim() || query.track?.trim() || query.imdb_id || query.tmdb_id)) throw new Error('title, query, artist, album, track, imdb_id, or tmdb_id is required');
     const ranked = rankCandidates(await this.indexer.search(query), query);
-    if (!ranked.length) throw new Error(`No healthy torrent found (seeders must be >= ${query.type === 'music' ? 2 : 5})`);
+    if (!ranked.length) throw new Error(`No healthy torrent found (seeders must be >= ${query.type === 'music' ? 2 : 1})`);
     const failures: string[] = [];
     for (const candidate of ranked) { try { const result = await withTimeout(this.tryCandidate(candidate, query), this.perCandidateTimeoutMs, 'candidate timeout'); return { ...result, attempted: failures.length + 1 }; } catch (error) { failures.push(`${candidate.title}: ${(error as Error).message}`); } }
     throw new Error(`All ranked torrent candidates failed: ${failures.join('; ')}`);
