@@ -12,7 +12,7 @@ describe('resolver ranking', () => {
     expect(queryText({ title: 'Dune', year: 2021, tmdb_id: '438631' })).toContain('Dune 2021');
     expect(parseQuality('Dune.2021.1080p.x264.AAC').videoCodec).toBe('h264');
     const ranked = rankCandidates([
-      { magnet: 'magnet:?xt=urn:btih:dead', title: 'Dune 4K AV1', seeders: 2 },
+      { magnet: 'magnet:?xt=urn:btih:dead', title: 'Dune 4K AV1', seeders: 0 },
       { magnet: 'magnet:?xt=urn:btih:a', title: 'Dune 720p x264 AAC', seeders: 50 },
       { magnet: 'magnet:?xt=urn:btih:b', title: 'Dune 1080p HEVC', seeders: 60 },
     ]);

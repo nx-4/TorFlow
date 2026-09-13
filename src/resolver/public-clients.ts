@@ -7,6 +7,7 @@ function timeoutSignal(ms: number, signal?: AbortSignal): AbortSignal { const ti
 function magnet(hash: string, name: string): string { if (!/^(?:[a-f0-9]{40}|[a-z2-7]{32})$/i.test(hash)) return ''; const params = [`xt=urn:btih:${hash}`, `dn=${encodeURIComponent(name)}`]; for (const tracker of TRACKERS) params.push(`tr=${encodeURIComponent(tracker)}`); return `magnet:?${params.join('&')}`; }
 function normalizeMagnet(value: string, name: string): string { const decoded = decodeURIComponent(value); const match = decoded.match(/[?&]xt=urn:btih:([a-f0-9]{40}|[a-z2-7]{32})/i); return match?.[1] ? magnet(match[1], name) : ''; }
 function isVideo(query: ResolverQuery): boolean { return query.type !== 'music'; }
+export function seriesQueryVariants(query: ResolverQuery): string[] { const base = query.title ?? query.query ?? ''; if (query.season === undefined || query.episode === undefined) return [queryText(query)]; const s = query.season; const e = query.episode; return [...new Set([`${base} S${String(s).padStart(2, '0')}E${String(e).padStart(2, '0')}`, `${base} S${s} E${e}`, `${base} Season ${s} Episode ${e}`])]; }
 function parseHtmlResults(html: string, source: string, fallback: string): TorrentCandidate[] {
   const results: TorrentCandidate[] = []; const seen = new Set<string>();
   const magnetPattern = /magnet:\?[^"'<>\s]+/gi;
@@ -36,12 +37,12 @@ export class TorrentioClient implements IndexerClient {
 }
 
 class HtmlTorrentClient implements IndexerClient {
-  constructor(private readonly url: (query: ResolverQuery) => string, private readonly source: string, private readonly timeoutMs = 3000) {}
-  async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> { if (!isVideo(query)) return []; const response = await fetch(this.url(query), { signal: timeoutSignal(this.timeoutMs, signal), headers: { accept: 'text/html,application/xhtml+xml' } }); if (!response.ok) throw new Error(`${this.source} HTTP ${response.status}`); return parseHtmlResults(await response.text(), this.source, queryText(query)); }
+  constructor(private readonly url: (query: ResolverQuery, text: string) => string, private readonly source: string, private readonly timeoutMs = 3000) {}
+  async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> { if (!isVideo(query)) return []; const settled = await Promise.allSettled(seriesQueryVariants(query).map(async (text) => { const response = await fetch(this.url(query, text), { signal: timeoutSignal(this.timeoutMs, signal), headers: { accept: 'text/html,application/xhtml+xml' } }); if (!response.ok) throw new Error(`${this.source} HTTP ${response.status}`); return parseHtmlResults(await response.text(), this.source, text); })); return settled.flatMap((result) => result.status === 'fulfilled' ? result.value : []); }
 }
-export class X1337Client extends HtmlTorrentClient { constructor(timeoutMs = 3000) { super((q) => `https://1337x.to/search/${encodeURIComponent(queryText(q))}/1/`, '1337x', timeoutMs); } }
-export class EztvClient extends HtmlTorrentClient { constructor(timeoutMs = 3000) { super((q) => `https://eztv.re/search/${encodeURIComponent(queryText(q))}`, 'eztv', timeoutMs); } }
-export class TorrentGalaxyClient extends HtmlTorrentClient { constructor(timeoutMs = 3000) { super((q) => `https://torrentgalaxy.to/torrents.php?search=${encodeURIComponent(queryText(q))}`, 'torrentgalaxy', timeoutMs); } }
+export class X1337Client extends HtmlTorrentClient { constructor(timeoutMs = 3000) { super((_q, text) => `https://1337x.to/search/${encodeURIComponent(text)}/1/`, '1337x', timeoutMs); } }
+export class EztvClient extends HtmlTorrentClient { constructor(timeoutMs = 3000) { super((_q, text) => `https://eztv.re/search/${encodeURIComponent(text)}`, 'eztv', timeoutMs); } }
+export class TorrentGalaxyClient extends HtmlTorrentClient { constructor(timeoutMs = 3000) { super((_q, text) => `https://torrentgalaxy.to/torrents.php?search=${encodeURIComponent(text)}`, 'torrentgalaxy', timeoutMs); } }
 
 export class AudioPublicClient implements IndexerClient {
   constructor(private readonly baseUrl = 'https://apibay.org', private readonly timeoutMs = 3000) {}

@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MultiIndexerClient, YtsClient } from '../src/resolver/public-clients.js';
+import { MultiIndexerClient, YtsClient, seriesQueryVariants } from '../src/resolver/public-clients.js';
 
 describe('public resolver adapters', () => {
+  it('builds multiple season and episode query formats', () => {
+    expect(seriesQueryVariants({ title: 'The Last of Us', season: 1, episode: 1 })).toEqual(['The Last of Us S01E01', 'The Last of Us S1 E1', 'The Last of Us Season 1 Episode 1']);
+  });
   it('turns YTS torrent metadata into magnets without an API key', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: { movies: [{ title: 'Dune', year: 2021, torrents: [{ hash: '0123456789abcdef0123456789abcdef01234567', quality: '1080p', type: 'BluRay', seeds: 42, peers: 3, size_bytes: 1000 }] }] } }), { status: 200, headers: { 'content-type': 'application/json' } })));
     const results = await new YtsClient('https://public.example/api/v2', 100).search({ title: 'Dune', year: 2021 });

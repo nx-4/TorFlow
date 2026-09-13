@@ -4,7 +4,7 @@ Streamix_Hub is a live WebTorrent-to-HTTP engine. It joins a WebTorrent swarm, r
 
 ## Configuration
 
-Copy `.env.example` to `.env`. The resolver is autonomous by default: it queries built-in public YTS and Torrentio adapters without an API key or Jackett deployment. `INDEXER_URL` and `INDEXER_API_KEY` are optional; when both are present, Torznab results are added to the public results. `RESOLVER_TIMEOUT_MS` is capped at 5000 milliseconds. `ALLOWED_ORIGINS` is a comma-separated CORS allowlist.
+Copy `.env.example` to `.env`. The resolver is autonomous by default: it queries built-in public adapters without an API key or Jackett deployment. `INDEXER_URL` and `INDEXER_API_KEY` are optional; when both are present, Torznab results are added to the public results. `RESOLVER_TIMEOUT_MS` is capped at 45000 milliseconds; each individual public provider remains capped at 3 seconds. `ALLOWED_ORIGINS` is a comma-separated CORS allowlist.
 
 ## Automated resolver
 
@@ -64,7 +64,7 @@ Resolver responses include a prioritized `subtitles` array. Arabic (`ara`) is se
 
 When `WYZIE_API_KEY` is configured, missing Arabic or major-language tracks are queried from Wyzie using IMDb/TMDB and episode identifiers. The key remains server-side; without it the engine still serves all subtitles found inside the torrent, but cannot provide external fallback tracks.
 
-Public providers are queried in parallel with a maximum 3-second timeout per provider. Streamix_Hub is strictly torrent-only: every successful response has `sourceType: "torrent"`; if no healthy torrent remains or all candidates fail, the API returns `404` with `code: "NO_HEALTHY_TORRENT"`. No third-party ad-supported embed URL is returned.
+Public providers are queried in parallel with a maximum 3-second timeout per provider. Video candidates with at least 1 seeder are eligible; music candidates require at least 2. Streamix_Hub is strictly torrent-only: every successful response has `sourceType: "torrent"`; if no healthy torrent remains or all candidates fail, the API returns `404` with `code: "NO_HEALTHY_TORRENT"`. No third-party ad-supported embed URL is returned.
 
 ## Metadata and streaming
 
