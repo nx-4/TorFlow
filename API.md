@@ -51,6 +51,19 @@ Successful response:
 
 The client prefixes `streamUrl` with the API origin and passes it directly to Video.js, ExoPlayer, AVPlayer, Flutter, or React Native. The stream route supports `Range: bytes=start-end` and returns `206 Partial Content`. If a public swarm cannot return metadata or peers within the timeout, the API returns structured `504` JSON with `code: "SWARM_TIMEOUT"` instead of terminating the process.
 
+### Subtitles
+
+Resolver responses include a prioritized `subtitles` array. Arabic (`ara`) is selected as the default when present, followed by English, French, Spanish, and German. Torrent subtitle files with `.srt`, `.vtt`, or `.ass` extensions are served as WebVTT through `/v1/subtitles/:infoHash/:fileIndex` with `Content-Type: text/vtt; charset=utf-8` and permissive CORS.
+
+```json
+"subtitles": [
+  { "lang": "ara", "label": "العربية", "isDefault": true, "url": "/v1/subtitles/<infoHash>/2", "source": "torrent", "fileIndex": 2 },
+  { "lang": "eng", "label": "English", "isDefault": false, "url": "/v1/subtitles/<infoHash>/3", "source": "torrent", "fileIndex": 3 }
+]
+```
+
+When `WYZIE_API_KEY` is configured, missing Arabic or major-language tracks are queried from Wyzie using IMDb/TMDB and episode identifiers. The key remains server-side and is optional; without it the engine still serves all subtitles found inside the torrent.
+
 Public providers are queried in parallel with a maximum 3-second timeout per provider. For movies and series with an IMDb/TMDB identifier, if no healthy torrent remains or all torrent candidates fail, the response may use `sourceType: "embed"` and return a public embed URL such as `https://vidsrc.to/embed/movie/tt1160419`. Music never uses embed fallback.
 
 ## Metadata and streaming

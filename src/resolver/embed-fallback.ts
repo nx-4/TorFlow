@@ -13,6 +13,6 @@ export class PublicEmbedFallback implements EmbedFallback {
       ? `https://vidsrc.to/embed/tv/${encodeURIComponent(id)}/${query.season ?? 1}/${query.episode ?? 1}`
       : `https://vidsrc.to/embed/movie/${encodeURIComponent(id)}`;
     const candidate: RankedCandidate = { magnet: '', title: query.title ?? query.query ?? id, seeders: 0, source: 'public-embed', quality: parseQuality(query.title ?? query.query ?? ''), score: 0 };
-    return { sourceType: 'embed', candidate, infoHash: '', streamId: randomId('embed'), streamUrl, fileIndex: -1, files: [], quality: candidate.quality, audioTracks: [], subtitleTracks: [] };
+    return { sourceType: 'embed', subtitles: [], candidate, infoHash: '', streamId: randomId('embed'), streamUrl, fileIndex: -1, files: [], quality: candidate.quality, audioTracks: [], subtitleTracks: [] };
   }
 }

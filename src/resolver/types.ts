@@ -38,6 +38,7 @@ export interface RankedCandidate extends TorrentCandidate {
 
 export interface ResolverResult {
   sourceType: 'torrent' | 'embed';
+  subtitles: Array<{ lang: string; label: string; isDefault: boolean; url: string; source: 'torrent' | 'wyzie'; fileIndex?: number }>;
   candidate: RankedCandidate;
   infoHash: string;
   streamId: string;

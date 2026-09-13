@@ -4,6 +4,7 @@ import { StreamResolver } from '../src/resolver/stream-resolver.js';
 import { StaticIndexerClient } from '../src/resolver/torznab-client.js';
 import { PublicEmbedFallback } from '../src/resolver/embed-fallback.js';
 import { TorrentManifest } from '../src/types.js';
+import { selectSubtitleFiles } from '../src/resolver/file-selector.js';
 
 const manifest = (hash: string): TorrentManifest => ({ infoHash: hash, name: 'movie', pieceLength: 100, pieceCount: 1, totalSize: 100, files: [{ index: 0, path: 'movie.mp4', name: 'movie.mp4', size: 100, mimeType: 'video/mp4', offset: 0, selected: false }] });
 
@@ -69,5 +70,16 @@ describe('embed fallback', () => {
     const result = await resolver.findStream({ title: 'Dune', imdb_id: 'tt1160419' });
     expect(result.sourceType).toBe('embed');
     expect(result.streamUrl).toContain('/embed/movie/tt1160419');
+  });
+});
+
+describe('subtitle selection', () => {
+  it('prioritizes Arabic and detects major language codes', () => {
+    const tracks = selectSubtitleFiles([
+      { index: 0, path: 'movie.eng.srt', name: 'movie.eng.srt', size: 10, mimeType: 'text/plain', offset: 0, selected: false },
+      { index: 1, path: 'movie.ara.srt', name: 'movie.ara.srt', size: 10, mimeType: 'text/plain', offset: 10, selected: false },
+      { index: 2, path: 'movie.fra.vtt', name: 'movie.fra.vtt', size: 10, mimeType: 'text/vtt', offset: 20, selected: false },
+    ]);
+    expect(tracks.map((track) => track.lang)).toEqual(['ara', 'eng', 'fra']);
   });
 });

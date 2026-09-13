@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { metadataController } from '../controllers/metadata-controller.js';
 import { resolverController } from '../controllers/resolver-controller.js';
 import { statusController, streamController } from '../controllers/stream-controller.js';
+import { subtitleController } from '../controllers/subtitle-controller.js';
 import { TorrentEngine } from '../engine/torrent-engine.js';
 import { StreamResolver } from '../resolver/stream-resolver.js';
 
@@ -14,6 +15,7 @@ export async function registerRoutes(app: FastifyInstance, engine: TorrentEngine
     return data ? reply.send({ data }) : reply.code(404).send({ error: 'Metadata not found' });
   });
   app.get('/v1/torrents/:infoHash/files/:fileIndex/stream', streamController(engine));
+  app.get('/v1/subtitles/:infoHash/:fileIndex', subtitleController(engine));
   app.get('/v1/streams/:streamId/status', statusController(engine));
   app.get('/v1/streams/:streamId/events', async (request, reply) => {
     const id = (request.params as { streamId: string }).streamId;
