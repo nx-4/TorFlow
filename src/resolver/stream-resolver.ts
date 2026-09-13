@@ -1,26 +1,21 @@
 import { TorrentEngine } from '../engine/torrent-engine.js';
 import { rankCandidates } from './ranking.js';
 import { IndexerClient } from './torznab-client.js';
+import { EmbedFallback, PublicEmbedFallback } from './embed-fallback.js';
 import { RankedCandidate, ResolverQuery, ResolverResult } from './types.js';
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  return Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs))]);
-}
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> { return Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs))]); }
 
 export class StreamResolver {
-  constructor(private readonly indexer: IndexerClient, private readonly engine: TorrentEngine, private readonly perCandidateTimeoutMs = 5000) {}
+  constructor(private readonly indexer: IndexerClient, private readonly engine: TorrentEngine, private readonly perCandidateTimeoutMs = 5000, private readonly embedFallback: EmbedFallback = new PublicEmbedFallback()) {}
 
   async findStream(query: ResolverQuery): Promise<ResolverResult> {
-    if (!(query.title?.trim() || query.query?.trim() || query.artist?.trim() || query.album?.trim() || query.track?.trim())) throw new Error('title, query, artist, album, or track is required');
+    if (!(query.title?.trim() || query.query?.trim() || query.artist?.trim() || query.album?.trim() || query.track?.trim() || query.imdb_id || query.tmdb_id)) throw new Error('title, query, artist, album, track, imdb_id, or tmdb_id is required');
     const ranked = rankCandidates(await this.indexer.search(query), query);
-    if (!ranked.length) throw new Error(`No healthy compatible torrents found (seeders must be >= ${query.type === 'music' ? 2 : 5})`);
+    if (!ranked.length) { const embed = await this.embedFallback.resolve(query); if (embed) return { ...embed, attempted: 0 }; throw new Error(`No healthy compatible torrents found (seeders must be >= ${query.type === 'music' ? 2 : 5})`); }
     const failures: string[] = [];
-    for (const candidate of ranked) {
-      try {
-        const result = await withTimeout(this.tryCandidate(candidate, query), this.perCandidateTimeoutMs, 'candidate timeout');
-        return { ...result, attempted: failures.length + 1 };
-      } catch (error) { failures.push(`${candidate.title}: ${(error as Error).message}`); }
-    }
+    for (const candidate of ranked) { try { const result = await withTimeout(this.tryCandidate(candidate, query), this.perCandidateTimeoutMs, 'candidate timeout'); return { ...result, attempted: failures.length + 1 }; } catch (error) { failures.push(`${candidate.title}: ${(error as Error).message}`); } }
+    const embed = await this.embedFallback.resolve(query); if (embed) return { ...embed, attempted: ranked.length };
     throw new Error(`All ranked torrent candidates failed: ${failures.join('; ')}`);
   }
 
@@ -33,6 +28,6 @@ export class StreamResolver {
     const handle = await this.engine.openStream(manifest.infoHash, file.index);
     const audioTracks = manifest.files.filter((item) => item.mimeType.startsWith('audio/')).map((item) => item.name);
     const subtitleTracks = manifest.files.filter((item) => /\.(srt|vtt|ass|ssa)$/i.test(item.name)).map((item) => item.name);
-    return { candidate, infoHash: manifest.infoHash, streamId: handle.streamId, streamUrl: `/v1/torrents/${manifest.infoHash}/files/${file.index}/stream`, fileIndex: file.index, files: manifest.files, quality: candidate.quality, audioTracks, subtitleTracks };
+    return { sourceType: 'torrent', candidate, infoHash: manifest.infoHash, streamId: handle.streamId, streamUrl: `/v1/torrents/${manifest.infoHash}/files/${file.index}/stream`, fileIndex: file.index, files: manifest.files, quality: candidate.quality, audioTracks, subtitleTracks };
   }
 }

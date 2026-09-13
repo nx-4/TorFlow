@@ -35,6 +35,7 @@ Successful response:
 ```json
 {
   "data": {
+    "sourceType": "torrent",
     "streamId": "stream_abc",
     "infoHash": "...",
     "streamUrl": "/v1/torrents/.../files/0/stream",
@@ -49,6 +50,8 @@ Successful response:
 ```
 
 The client prefixes `streamUrl` with the API origin and passes it directly to Video.js, ExoPlayer, AVPlayer, Flutter, or React Native. The stream route supports `Range: bytes=start-end` and returns `206 Partial Content`. If a public swarm cannot return metadata or peers within the timeout, the API returns structured `504` JSON with `code: "SWARM_TIMEOUT"` instead of terminating the process.
+
+Public providers are queried in parallel with a maximum 3-second timeout per provider. For movies and series with an IMDb/TMDB identifier, if no healthy torrent remains or all torrent candidates fail, the response may use `sourceType: "embed"` and return a public embed URL such as `https://vidsrc.to/embed/movie/tt1160419`. Music never uses embed fallback.
 
 ## Metadata and streaming
 

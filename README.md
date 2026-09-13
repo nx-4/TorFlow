@@ -9,6 +9,7 @@ Cloud-ready, developer-focused **WebTorrent-to-HTTP streaming engine** built wit
 - Standard `206 Partial Content` streaming compatible with Video.js, AVPlayer, ExoPlayer, Flutter, and React Native clients.
 - Dynamic `PORT`, `NODE_ENV`, and `ALLOWED_ORIGINS` configuration through dotenv.
 - Autonomous public resolver adapters for YTS movies and Torrentio streams; Jackett/Prowlarr is optional.
+- Parallel public adapters for Torrentio, 1337x, EZTV, TorrentGalaxy, YTS, and public audio search, with a movie/series embed fallback when IMDb/TMDB identifiers are supplied.
 - Docker and Render configuration included.
 
 ## Repository layout
@@ -98,6 +99,7 @@ const response = await fetch('https://api.example.com/v1/resolver/find-stream', 
 const { data } = await response.json();
 const playableUrl = new URL(data.streamUrl, 'https://api.example.com').toString();
 // data.quality, data.audioTracks, data.subtitleTracks are ready for the player UI.
+// data.sourceType is "torrent" or "embed".
 ```
 
 For series, send `season`, `episode`, and optionally `imdb_id`. The resolver filters out torrents below 5 seeders, prefers H.264/x264 and mobile-friendly audio, ranks by seed health plus quality, and retries the next candidate when metadata or peers do not arrive within `RESOLVER_TIMEOUT_MS`.

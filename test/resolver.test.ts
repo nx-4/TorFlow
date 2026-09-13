@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { rankCandidates, parseAudioQuality, parseQuality, queryText } from '../src/resolver/ranking.js';
 import { StreamResolver } from '../src/resolver/stream-resolver.js';
 import { StaticIndexerClient } from '../src/resolver/torznab-client.js';
+import { PublicEmbedFallback } from '../src/resolver/embed-fallback.js';
 import { TorrentManifest } from '../src/types.js';
 
 const manifest = (hash: string): TorrentManifest => ({ infoHash: hash, name: 'movie', pieceLength: 100, pieceCount: 1, totalSize: 100, files: [{ index: 0, path: 'movie.mp4', name: 'movie.mp4', size: 100, mimeType: 'video/mp4', offset: 0, selected: false }] });
@@ -58,5 +59,15 @@ describe('music resolver', () => {
     const result = await resolver.findStream({ type: 'music', artist: 'Daft Punk', album: 'Discovery' });
     expect(result.fileIndex).toBe(1);
     expect(result.streamUrl).toBe('/v1/torrents/audio-hash/files/1/stream');
+  });
+});
+
+
+describe('embed fallback', () => {
+  it('returns an embed URL when no healthy torrent exists', async () => {
+    const resolver = new StreamResolver(new StaticIndexerClient([]), {} as never, 100, new PublicEmbedFallback(true));
+    const result = await resolver.findStream({ title: 'Dune', imdb_id: 'tt1160419' });
+    expect(result.sourceType).toBe('embed');
+    expect(result.streamUrl).toContain('/embed/movie/tt1160419');
   });
 });

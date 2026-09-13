@@ -37,6 +37,7 @@ export interface RankedCandidate extends TorrentCandidate {
 }
 
 export interface ResolverResult {
+  sourceType: 'torrent' | 'embed';
   candidate: RankedCandidate;
   infoHash: string;
   streamId: string;
