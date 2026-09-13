@@ -4,9 +4,10 @@ import WebTorrent from 'webtorrent';
 import { FileManifest, Source, StreamHandle, StreamStatus, TorrentManifest } from '../types.js';
 import { mimeType, randomId } from '../utils.js';
 import { prioritizePieces } from './piece-prioritizer.js';
+import { parseMagnet } from './metadata-resolver.js';
 
 type WebTorrentFile = { name: string; path: string; length: number; offset?: number; createReadStream: (options?: { start?: number; end?: number }) => NodeJS.ReadableStream };
-type WebTorrentTorrent = { infoHash: string; name: string; pieceLength: number; pieces: string[]; files: WebTorrentFile[]; downloaded: number; uploaded: number; numPeers: number; progress: number; select: (start: number, end: number, priority?: number) => void; deselect: (start: number, end: number, priority?: number) => void; destroy: (callback?: (error?: Error) => void) => void };
+type WebTorrentTorrent = { infoHash: string; name: string; pieceLength: number; pieces: string[]; files: WebTorrentFile[]; downloaded: number; uploaded: number; numPeers: number; progress: number; select: (start: number, end: number, priority?: number) => void; deselect: (start: number, end: number, priority?: number) => void; destroy: (callback?: (error?: Error) => void) => void; on?: (event: string, listener: (error: Error) => void) => void };
 type WebTorrentClient = { add: (source: unknown, callback?: (torrent: WebTorrentTorrent) => void) => WebTorrentTorrent; destroy: (callback?: (error?: Error) => void) => void };
 
 export class TorrentEngine extends EventEmitter {
@@ -27,6 +28,7 @@ export class TorrentEngine extends EventEmitter {
   /** Connects to the live swarm, waits for metadata, and registers physical files. */
   async registerManifest(source: Source): Promise<TorrentManifest> {
     const torrentSource = 'torrentBuffer' in source ? source.torrentBuffer : source.magnet;
+    if ('magnet' in source) parseMagnet(source.magnet);
     return new Promise((resolve, reject) => {
       let settled = false;
       const finish = (error?: Error, torrent?: WebTorrentTorrent) => {
@@ -45,6 +47,7 @@ export class TorrentEngine extends EventEmitter {
       };
       try {
         const torrent = this.client.add(torrentSource, (ready) => finish(undefined, ready));
+        torrent?.on?.('error', (error) => finish(error));
         if (torrent?.files?.length) finish(undefined, torrent);
       } catch (error) { finish(error as Error); }
     });
