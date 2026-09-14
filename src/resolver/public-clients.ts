@@ -34,7 +34,26 @@ export class YtsClient implements IndexerClient {
 
 export class TorrentioClient implements IndexerClient {
   constructor(private readonly baseUrl = 'https://torrentio.strem.fun', private readonly timeoutMs = 3000) {}
-  async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> { if (query.type === 'music') return []; const kind = query.season !== undefined || query.episode !== undefined ? 'series' : 'movie'; const id = query.imdb_id ?? (query.tmdb_id ? `tmdb:${query.tmdb_id}` : encodeURIComponent(query.title ?? query.query ?? '')); const suffix = kind === 'series' ? `:${query.season ?? 1}:${query.episode ?? 1}` : ''; const response = await fetch(`${this.baseUrl}/stream/${kind}/${id}${suffix}.json`, { signal: timeoutSignal(this.timeoutMs, signal), headers: { accept: 'application/json' } }); if (!response.ok) throw new Error(`Torrentio HTTP ${response.status}`); const payload = await response.json() as { streams?: Array<{ name?: string; title?: string; url?: string; infoHash?: string }> }; return (payload.streams ?? []).map((stream) => { const title = [stream.name, stream.title].filter(Boolean).join('\n') || 'Torrentio result'; const hash = stream.infoHash ?? stream.url?.match(/urn:btih:([^&/]+)/i)?.[1]; const candidateMagnet = hash ? magnet(hash, title) : (stream.url?.startsWith('magnet:?') ? normalizeMagnet(stream.url, title) : ''); return { magnet: candidateMagnet, title, seeders: parseTorrentioSeeders(stream.name, stream.title), source: 'torrentio' }; }).filter((candidate) => candidate.magnet); }
+  async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> {
+    if (query.type === 'music') return [];
+    const kind = query.season !== undefined || query.episode !== undefined ? 'series' : 'movie';
+    const id = query.imdb_id ?? (query.tmdb_id ? `tmdb:${query.tmdb_id}` : encodeURIComponent(query.title ?? query.query ?? ''));
+    const suffix = kind === 'series' ? `:${query.season ?? 1}:${query.episode ?? 1}` : '';
+    const url = `${this.baseUrl}/stream/${kind}/${id}${suffix}.json`;
+    let response: Response | undefined;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        response = await fetch(url, { signal: timeoutSignal(Math.max(this.timeoutMs, 8000), signal), headers: { accept: 'application/json' } });
+        if (response.ok) break;
+        lastError = new Error(`Torrentio HTTP ${response.status}`);
+      } catch (error) { lastError = error; }
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    if (!response?.ok) throw lastError instanceof Error ? lastError : new Error('Torrentio request failed');
+    const payload = await response.json() as { streams?: Array<{ name?: string; title?: string; url?: string; infoHash?: string }> };
+    return (payload.streams ?? []).map((stream) => { const title = [stream.name, stream.title].filter(Boolean).join('\n') || 'Torrentio result'; const hash = stream.infoHash ?? stream.url?.match(/urn:btih:([^&/]+)/i)?.[1]; const candidateMagnet = hash ? magnet(hash, title) : (stream.url?.startsWith('magnet:?') ? normalizeMagnet(stream.url, title) : ''); return { magnet: candidateMagnet, title, seeders: parseTorrentioSeeders(stream.name, stream.title), source: 'torrentio' }; }).filter((candidate) => candidate.magnet);
+  }
 }
 
 class HtmlTorrentClient implements IndexerClient {
