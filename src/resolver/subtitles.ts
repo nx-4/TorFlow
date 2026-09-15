@@ -14,8 +14,10 @@ export class OpenSubtitlesClient {
     private readonly timeoutMs = 4000,
   ) {}
 
-  async searchCore(query: ResolverQuery, existing: Set<string>): Promise<SubtitleTrack[]> {
-    for (const language of ['ar', 'fr', 'en']) {
+  async searchCore(query: ResolverQuery, existing: Set<string>, preferred?: string[]): Promise<SubtitleTrack[]> {
+    const preferredLanguages = preferred?.map((language) => language.toLowerCase()).filter((language) => LANGUAGE_MAP[language]) ?? [];
+    const languages = [...new Set(preferredLanguages.length ? preferredLanguages : ['ar', 'fr', 'en'])];
+    for (const language of languages) {
       const tracks = await this.search(query, existing, language);
       if (tracks.length) return tracks;
     }

@@ -32,6 +32,7 @@ export function rankCandidates(candidates: TorrentCandidate[], query?: ResolverQ
   return candidates.filter((candidate) => { const key = candidate.magnet.toLowerCase(); if (!candidate.magnet.startsWith('magnet:?') || Number(candidate.seeders) < minimumSeeders || seen.has(key)) return false; seen.add(key); return true; }).map((candidate) => {
     const quality = query?.type === 'music' ? parseAudioQuality(candidate.title) : parseQuality(candidate.title);
     const seedScore = Math.min(100, Math.log10(candidate.seeders + 1) * 45);
-    return { ...candidate, seeders: Number(candidate.seeders), quality, score: Number((seedScore + quality.score).toFixed(3)) };
+    const preferenceScore = query?.preferredQuality && quality.resolution === query.preferredQuality ? 18 : query?.preferredQuality && quality.resolution === 'unknown' ? 0 : 0;
+    return { ...candidate, seeders: Number(candidate.seeders), quality, score: Number((seedScore + quality.score + preferenceScore).toFixed(3)) };
   }).sort((a, b) => b.score - a.score || b.seeders - a.seeders);
 }

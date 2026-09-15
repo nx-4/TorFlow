@@ -10,6 +10,10 @@ export interface ResolverQuery {
   episode?: number;
   imdb_id?: string;
   tmdb_id?: string;
+  preferredQuality?: '2160p' | '1080p' | '720p' | '480p';
+  preferredSubtitleLanguages?: string[];
+  preferredSource?: 'torrent' | 'hls' | 'auto';
+  hlsUrl?: string;
 }
 
 export interface TorrentCandidate {
@@ -49,4 +53,5 @@ export interface ResolverResult {
   audioTracks: string[];
   subtitleTracks: string[];
   attempted: number;
+  cacheHit?: boolean;
 }

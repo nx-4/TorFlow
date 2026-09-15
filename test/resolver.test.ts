@@ -6,6 +6,8 @@ import { TorrentManifest } from '../src/types.js';
 import { selectSubtitleFiles } from '../src/resolver/file-selector.js';
 import { OpenSubtitlesClient } from '../src/resolver/subtitles.js';
 import { parseTorrentioSeeders } from '../src/resolver/public-clients.js';
+import { ResolutionCache, resolutionCacheKey } from '../src/resolver/resolution-cache.js';
+import { HlsSource } from '../src/resolver/hls-source.js';
 
 const manifest = (hash: string): TorrentManifest => ({ infoHash: hash, name: 'movie', pieceLength: 100, pieceCount: 1, totalSize: 100, files: [{ index: 0, path: 'movie.mp4', name: 'movie.mp4', size: 100, mimeType: 'video/mp4', offset: 0, selected: false }] });
 
@@ -112,5 +114,22 @@ describe('subtitle selection', () => {
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain('languages=fr');
     expect(fetchMock).toHaveBeenCalledTimes(3);
     vi.unstubAllGlobals();
+  });
+});
+
+
+describe('enhancement modules', () => {
+  it('expires resolution cache entries and canonicalizes query keys', async () => {
+    const cache = new ResolutionCache<string>(10);
+    const key = resolutionCacheKey({ title: 'Dune', year: 2021, ignored: undefined });
+    cache.set(key, 'ok');
+    expect(cache.get(resolutionCacheKey({ year: 2021, title: 'Dune' }))).toBe('ok');
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    expect(cache.get(key)).toBeUndefined();
+  });
+
+  it('keeps HLS disabled unless explicitly enabled', () => {
+    expect(new HlsSource(false).resolve({ preferredSource: 'hls', hlsUrl: 'https://cdn.example/stream.m3u8' })).toBeUndefined();
+    expect(new HlsSource(true).resolve({ preferredSource: 'hls', hlsUrl: 'https://cdn.example/stream.m3u8' })?.sourceType).toBe('hls');
   });
 });

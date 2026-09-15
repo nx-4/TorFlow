@@ -10,6 +10,9 @@ import { StreamResolver } from './resolver/stream-resolver.js';
 import { TorznabClient } from './resolver/torznab-client.js';
 import { MultiIndexerClient, createPublicIndexer } from './resolver/public-clients.js';
 import { OpenSubtitlesClient } from './resolver/subtitles.js';
+import { ResolutionCache } from './resolver/resolution-cache.js';
+import { ResolverResult } from './resolver/types.js';
+import { HlsSource } from './resolver/hls-source.js';
 
 export async function buildApp() {
   const config = loadConfig();
@@ -26,7 +29,8 @@ export async function buildApp() {
   const engine = new TorrentEngine();
   const publicIndexer = createPublicIndexer(Math.min(config.resolverTimeoutMs, 5000));
   const indexer = config.indexerUrl && config.indexerApiKey ? new MultiIndexerClient([publicIndexer, new TorznabClient(config.indexerUrl, config.indexerApiKey, config.resolverTimeoutMs)]) : publicIndexer;
-  const resolver = new StreamResolver(indexer, engine, Math.min(config.resolverTimeoutMs, 8000), new OpenSubtitlesClient(config.openSubtitlesApiKey));
+  const resolutionCache = config.resolutionCacheEnabled ? new ResolutionCache<ResolverResult>(Math.min(config.resolutionCacheTtlSeconds, 7200) * 1000, config.resolutionCacheMaxEntries) : undefined;
+  const resolver = new StreamResolver(indexer, engine, Math.min(config.resolverTimeoutMs, 8000), new OpenSubtitlesClient(config.openSubtitlesApiKey), resolutionCache, new HlsSource());
   await registerRoutes(app, engine, resolver);
   app.decorate('streamix', { engine, cache, config });
   return app;
