@@ -16,97 +16,44 @@ export class TorrentEngine extends EventEmitter {
   private torrents = new Map<string, WebTorrentTorrent>();
   private client: WebTorrentClient;
 
-  constructor(client?: WebTorrentClient) {
-    super();
-    this.client = client ?? (new WebTorrent() as unknown as WebTorrentClient);
-  }
-
-  async inspect(source: Source): Promise<TorrentManifest> {
-    return this.registerManifest(source);
-  }
-
-  /** Connects to the live swarm, waits for metadata, and registers physical files. */
+  constructor(client?: WebTorrentClient) { super(); this.client = client ?? (new WebTorrent() as unknown as WebTorrentClient); }
+  async inspect(source: Source): Promise<TorrentManifest> { return this.registerManifest(source); }
   async registerManifest(source: Source): Promise<TorrentManifest> {
     const torrentSource = 'torrentBuffer' in source ? source.torrentBuffer : source.magnet;
     if ('magnet' in source) parseMagnet(source.magnet);
     return new Promise((resolve, reject) => {
-      let settled = false;
-      let activeTorrent: WebTorrentTorrent | undefined;
+      let settled = false; let activeTorrent: WebTorrentTorrent | undefined;
       const clientError = (error: Error) => finish(error);
-      const timer = setTimeout(() => {
-        try { activeTorrent?.destroy(); } catch { /* cleanup must not mask the timeout */ }
-        finish(new Error('WebTorrent metadata timeout: no metadata received from the swarm'));
-      }, 5000);
+      const timer = setTimeout(() => { try { activeTorrent?.destroy(); } catch {} finish(new Error('WebTorrent metadata timeout: no metadata received from the swarm')); }, 5000);
       const finish = (error?: Error, torrent?: WebTorrentTorrent) => {
-        if (settled) return;
-        clearTimeout(timer);
-        this.client.off?.('error', clientError);
+        if (settled) return; clearTimeout(timer); this.client.off?.('error', clientError);
         if (error || !torrent) { settled = true; reject(error ?? new Error('WebTorrent did not return metadata')); return; }
-        const files: FileManifest[] = torrent.files.map((file, index) => ({
-          index, path: file.path || file.name, name: file.name, size: file.length,
-          mimeType: mimeType(file.name),
-          offset: torrent.files.slice(0, index).reduce((sum, item) => sum + item.length, 0), selected: false,
-        }));
+        const files: FileManifest[] = torrent.files.map((file, index) => ({ index, path: file.path || file.name, name: file.name, size: file.length, mimeType: mimeType(file.name), offset: torrent.files.slice(0, index).reduce((sum, item) => sum + item.length, 0), selected: false }));
         const manifest: TorrentManifest = { infoHash: torrent.infoHash, name: torrent.name, pieceLength: torrent.pieceLength, pieceCount: torrent.pieces.length, files, totalSize: files.reduce((sum, file) => sum + file.size, 0) };
-        this.manifests.set(manifest.infoHash, manifest);
-        this.torrents.set(manifest.infoHash, torrent);
-        settled = true;
-        resolve(manifest);
+        this.manifests.set(manifest.infoHash, manifest); this.torrents.set(manifest.infoHash, torrent); settled = true; resolve(manifest);
       };
-      try {
-        this.client.on?.('error', clientError);
-        activeTorrent = this.client.add(torrentSource, (ready) => finish(undefined, ready));
-        activeTorrent?.on?.('error', (error) => finish(error));
-        if (activeTorrent?.files?.length) finish(undefined, activeTorrent);
-      } catch (error) { finish(error as Error); }
+      try { this.client.on?.('error', clientError); activeTorrent = this.client.add(torrentSource, (ready) => finish(undefined, ready)); activeTorrent?.on?.('error', (error) => finish(error)); if (activeTorrent?.files?.length) finish(undefined, activeTorrent); } catch (error) { finish(error as Error); }
     });
   }
-
   registerParsedManifest(manifest: TorrentManifest): void { this.manifests.set(manifest.infoHash, manifest); }
   getManifest(infoHash: string): TorrentManifest | undefined { return this.manifests.get(infoHash); }
-
-  async waitForPeers(infoHash: string, timeoutMs = 5000): Promise<void> {
-    const torrent = this.torrents.get(infoHash);
-    if (!torrent) return;
-    const deadline = Date.now() + timeoutMs;
-    while (torrent.numPeers < 1 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 100));
-    if (torrent.numPeers < 1) throw new Error('No active peers available');
+  async waitForPeers(infoHash: string, timeoutMs = 5000): Promise<void> { const torrent = this.torrents.get(infoHash); if (!torrent) return; const deadline = Date.now() + timeoutMs; while (torrent.numPeers < 1 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 100)); if (torrent.numPeers < 1) throw new Error('No active peers available'); }
+  async verifyDataFlow(infoHash: string, fileIndex: number, timeoutMs = 5000): Promise<number> {
+    const manifest = this.manifests.get(infoHash); const torrent = this.torrents.get(infoHash); const file = manifest?.files[fileIndex]; const sourceFile = torrent?.files[fileIndex];
+    if (!manifest || !torrent || !file || !sourceFile) throw new Error('Torrent data flow is unavailable');
+    return new Promise((resolve, reject) => {
+      let settled = false; const stream = sourceFile.createReadStream({ start: 0, end: Math.min(file.size - 1, 64 * 1024 - 1) }); const stoppable = stream as NodeJS.ReadableStream & { destroy?: () => void };
+      const timer = setTimeout(() => { if (!settled) { settled = true; stoppable.destroy?.(); reject(new Error('Torrent data flow timeout: no payload bytes received')); } }, timeoutMs);
+      stream.on('data', (chunk: Buffer | Uint8Array) => { if (!settled && chunk.byteLength > 0) { settled = true; clearTimeout(timer); stoppable.destroy?.(); resolve(chunk.byteLength); } });
+      stream.on('error', (error: Error) => { if (!settled) { settled = true; clearTimeout(timer); reject(error); } });
+    });
   }
-
   async openStream(infoHash: string, fileIndex: number): Promise<StreamHandle> {
-    const manifest = this.manifests.get(infoHash);
-    if (!manifest) throw new Error('Torrent metadata is not loaded');
-    const file = manifest.files[fileIndex];
-    if (!file) throw new Error('File index is out of range');
-    const torrent = this.torrents.get(infoHash);
-    const streamId = randomId('stream');
-    const status: StreamStatus = { streamId, infoHash, fileIndex, phase: 'buffering', progress: 0, downloaded: 0, uploaded: 0, peers: torrent?.numPeers ?? 0, bufferedBytes: 0, updatedAt: new Date().toISOString() };
-    this.streams.set(streamId, status);
-    const sourceFile = torrent?.files[fileIndex];
-    if (torrent) {
-      const first = Math.floor(file.offset / manifest.pieceLength);
-      const last = Math.ceil((file.offset + file.size) / manifest.pieceLength) - 1;
-      torrent.deselect(0, Math.max(0, torrent.pieces.length - 1), 0);
-      for (const piece of prioritizePieces(torrent.pieces.length, manifest.pieceLength, file.offset)) torrent.select(piece, piece, 10);
-      status.phase = 'buffering';
-      status.updatedAt = new Date().toISOString();
-      void first; void last;
-    }
-    const handle: StreamHandle = {
-      streamId, infoHash, file, size: file.size,
-      createReadStream: (range) => sourceFile ? sourceFile.createReadStream(range) : this.createTestReadable(streamId, file, range),
-      status: () => ({ ...this.streams.get(streamId)! }),
-      destroy: async () => { this.streams.delete(streamId); },
-    };
-    return handle;
+    const manifest = this.manifests.get(infoHash); if (!manifest) throw new Error('Torrent metadata is not loaded'); const file = manifest.files[fileIndex]; if (!file) throw new Error('File index is out of range'); const torrent = this.torrents.get(infoHash); const streamId = randomId('stream'); const status: StreamStatus = { streamId, infoHash, fileIndex, phase: 'buffering', progress: 0, downloaded: 0, uploaded: 0, peers: torrent?.numPeers ?? 0, bufferedBytes: 0, updatedAt: new Date().toISOString() }; this.streams.set(streamId, status); const sourceFile = torrent?.files[fileIndex];
+    if (torrent) { torrent.deselect(0, Math.max(0, torrent.pieces.length - 1), 0); for (const piece of prioritizePieces(torrent.pieces.length, manifest.pieceLength, file.offset)) torrent.select(piece, piece, 10); }
+    return { streamId, infoHash, file, size: file.size, createReadStream: (range) => sourceFile ? sourceFile.createReadStream(range) : this.createTestReadable(streamId, file, range), status: () => ({ ...this.streams.get(streamId)! }), destroy: async () => { this.streams.delete(streamId); } };
   }
-
-  private createTestReadable(streamId: string, file: FileManifest, range?: { start: number; end: number }): NodeJS.ReadableStream {
-    const start = range?.start ?? 0; const end = Math.min(range?.end ?? file.size - 1, file.size - 1); const total = Math.max(0, end - start + 1); let sent = 0;
-    const readable = new Readable({ read: () => { if (sent >= total) { readable.push(null); return; } const chunk = Buffer.alloc(Math.min(64 * 1024, total - sent)); sent += chunk.length; const status = this.streams.get(streamId); if (status) { status.phase = sent === total ? 'complete' : 'streaming'; status.downloaded = sent; status.progress = total ? sent / total : 1; status.bufferedBytes = Math.max(0, total - sent); status.updatedAt = new Date().toISOString(); this.emit('status', { ...status }); } readable.push(chunk); } });
-    return readable;
-  }
-
+  private createTestReadable(streamId: string, file: FileManifest, range?: { start: number; end: number }): NodeJS.ReadableStream { const start = range?.start ?? 0; const end = Math.min(range?.end ?? file.size - 1, file.size - 1); const total = Math.max(0, end - start + 1); let sent = 0; const readable = new Readable({ read: () => { if (sent >= total) { readable.push(null); return; } const chunk = Buffer.alloc(Math.min(64 * 1024, total - sent)); sent += chunk.length; const status = this.streams.get(streamId); if (status) { status.phase = sent === total ? 'complete' : 'streaming'; status.downloaded = sent; status.progress = total ? sent / total : 1; status.bufferedBytes = Math.max(0, total - sent); status.updatedAt = new Date().toISOString(); this.emit('status', { ...status }); } readable.push(chunk); } }); return readable; }
   getStatus(streamId: string): StreamStatus | undefined { return this.streams.get(streamId) ? { ...this.streams.get(streamId)! } : undefined; }
   async destroy(): Promise<void> { await new Promise<void>((resolve) => this.client.destroy(() => resolve())); }
 }

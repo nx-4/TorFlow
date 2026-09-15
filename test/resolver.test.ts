@@ -8,6 +8,7 @@ import { OpenSubtitlesClient } from '../src/resolver/subtitles.js';
 import { parseTorrentioSeeders } from '../src/resolver/public-clients.js';
 import { ResolutionCache, resolutionCacheKey } from '../src/resolver/resolution-cache.js';
 import { HlsSource } from '../src/resolver/hls-source.js';
+import { matchesRequestedContent } from '../src/resolver/content-match.js';
 
 const manifest = (hash: string): TorrentManifest => ({ infoHash: hash, name: 'movie', pieceLength: 100, pieceCount: 1, totalSize: 100, files: [{ index: 0, path: 'movie.mp4', name: 'movie.mp4', size: 100, mimeType: 'video/mp4', offset: 0, selected: false }] });
 
@@ -37,6 +38,7 @@ describe('resolver fallback', () => {
     const engine = {
       registerManifest: async ({ magnet }: { magnet: string }) => { calls.push(magnet); if (magnet.includes('bad')) throw new Error('metadata timeout'); return manifest('good-hash'); },
       waitForPeers: async () => undefined,
+      verifyDataFlow: async () => 1024,
       openStream: async () => ({ streamId: 'stream_1' }),
     } as never;
     const resolver = new StreamResolver(new StaticIndexerClient([
@@ -63,7 +65,7 @@ describe('music resolver', () => {
       registerManifest: async () => ({ infoHash: 'audio-hash', files: [
         { index: 0, path: 'cover.jpg', name: 'cover.jpg', size: 10, mimeType: 'image/jpeg', offset: 0, selected: false },
         { index: 1, path: 'track.flac', name: 'track.flac', size: 100, mimeType: 'audio/flac', offset: 10, selected: false },
-      ] }), waitForPeers: async () => undefined, openStream: async (_hash: string, fileIndex: number) => ({ streamId: `audio_stream_${fileIndex}` }),
+      ] }), waitForPeers: async () => undefined, verifyDataFlow: async () => 1024, openStream: async (_hash: string, fileIndex: number) => ({ streamId: `audio_stream_${fileIndex}` }),
     } as never;
     const resolver = new StreamResolver(new StaticIndexerClient([{ magnet: 'magnet:?xt=urn:btih:flac', title: 'Discovery FLAC', seeders: 40 }]), engine, 500);
     const result = await resolver.findStream({ type: 'music', artist: 'Daft Punk', album: 'Discovery' });
@@ -119,6 +121,12 @@ describe('subtitle selection', () => {
 
 
 describe('enhancement modules', () => {
+  it('strictly matches series title, season, and episode', () => {
+    expect(matchesRequestedContent({ type: 'series', title: 'Squid Game', season: 1, episode: 1, imdb_id: 'tt10919420' }, 'Squid Game S01E01 1080p', [])).toBe(true);
+    expect(matchesRequestedContent({ type: 'series', title: 'Squid Game', season: 1, episode: 1 }, 'Squid Game S01E02 1080p', [])).toBe(false);
+    expect(matchesRequestedContent({ type: 'series', title: 'Other Show', season: 1, episode: 1 }, 'Squid Game S01E01', [])).toBe(false);
+  });
+
   it('expires resolution cache entries and canonicalizes query keys', async () => {
     const cache = new ResolutionCache<string>(10);
     const key = resolutionCacheKey({ title: 'Dune', year: 2021, ignored: undefined });
@@ -131,5 +139,11 @@ describe('enhancement modules', () => {
   it('keeps HLS disabled unless explicitly enabled', () => {
     expect(new HlsSource(false).resolve({ preferredSource: 'hls', hlsUrl: 'https://cdn.example/stream.m3u8' })).toBeUndefined();
     expect(new HlsSource(true).resolve({ preferredSource: 'hls', hlsUrl: 'https://cdn.example/stream.m3u8' })?.sourceType).toBe('hls');
+  });
+
+  it('uses a secondary subtitle provider when OpenSubtitles has no key', async () => {
+    const fallback = { search: async () => [{ lang: 'ita', label: 'Italiano', isDefault: false, url: 'https://subs.example/it.vtt', source: 'opensubtitles' as const }] };
+    const tracks = await new OpenSubtitlesClient(undefined, undefined, 1000, fallback).search({ title: 'Dune', imdb_id: 'tt1160419' }, new Set());
+    expect(tracks[0]).toMatchObject({ lang: 'ita', url: 'https://subs.example/it.vtt' });
   });
 });

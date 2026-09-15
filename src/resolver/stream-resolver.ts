@@ -6,6 +6,7 @@ import { OpenSubtitlesClient } from './subtitles.js';
 import { RankedCandidate, ResolverQuery, ResolverResult } from './types.js';
 import { ResolutionCache, resolutionCacheKey } from './resolution-cache.js';
 import { HlsResult, HlsSource } from './hls-source.js';
+import { matchesRequestedContent } from './content-match.js';
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> { return Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs))]); }
 const resolverDebug = process.env.RESOLVER_DEBUG === 'true';
@@ -38,6 +39,8 @@ export class StreamResolver {
     const audioExtensions = /\.(mp3|flac|m4a|aac|wav|ogg|opus|alac)$/i;
     const file = query.type === 'music' ? files.find((item) => audioExtensions.test(item.name) || item.mimeType?.startsWith('audio/')) : files.find((item) => item.mimeType?.startsWith('video/') || item.mimeType?.startsWith('audio/')) ?? files[0];
     if (!file) throw new Error('Torrent contains no playable media file');
+    if (!matchesRequestedContent(query, `${candidate.title} ${manifest.name}`, files)) throw new Error('Torrent content does not match the requested title, season, or episode');
+    await this.engine.verifyDataFlow(manifest.infoHash, file.index, Math.min(5000, Math.max(1000, this.perCandidateTimeoutMs - 250)));
     const handle = await this.engine.openStream(manifest.infoHash, file.index);
     const audioTracks = files.filter((item) => item.mimeType?.startsWith('audio/')).map((item) => item.name);
     const subtitleTracks = files.filter((item) => /\.(srt|vtt|ass|ssa)$/i.test(item.name)).map((item) => item.name);
