@@ -12,7 +12,7 @@ const manifest = (hash: string): TorrentManifest => ({ infoHash: hash, name: 'mo
 describe('resolver ranking', () => {
   it('parses Torrentio seeders from name and title metadata', () => {
     expect(parseTorrentioSeeders('Torrentio 1080p', 'Movie 1080p 👤 63')).toBe(63);
-    expect(parseTorrentioSeeders('Movie 17 seeders', undefined)).toBe(17);
+    expect(parseTorrentioSeeders('Movie', 'metadata', '17 seeders')).toBe(17);
     expect(parseTorrentioSeeders('Torrentio 4K', 'Movie')).toBe(0);
   });
 

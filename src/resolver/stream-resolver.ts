@@ -21,14 +21,16 @@ export class StreamResolver {
 
   private async tryCandidate(candidate: RankedCandidate, query: ResolverQuery): Promise<Omit<ResolverResult, 'attempted'>> {
     const manifest = await this.engine.registerManifest({ magnet: candidate.magnet });
+    const files = Array.isArray(manifest.files) ? manifest.files : [];
+    if (!manifest.infoHash || !files.length) throw new Error('Torrent metadata contains no files');
     await this.engine.waitForPeers(manifest.infoHash, Math.min(2500, this.perCandidateTimeoutMs - 250));
     const audioExtensions = /\.(mp3|flac|m4a|aac|wav|ogg|opus|alac)$/i;
-    const file = query.type === 'music' ? manifest.files.find((item) => audioExtensions.test(item.name) || item.mimeType.startsWith('audio/')) : manifest.files.find((item) => item.mimeType.startsWith('video/') || item.mimeType.startsWith('audio/')) ?? manifest.files[0];
+    const file = query.type === 'music' ? files.find((item) => audioExtensions.test(item.name) || item.mimeType?.startsWith('audio/')) : files.find((item) => item.mimeType?.startsWith('video/') || item.mimeType?.startsWith('audio/')) ?? files[0];
     if (!file) throw new Error('Torrent contains no playable media file');
     const handle = await this.engine.openStream(manifest.infoHash, file.index);
-    const audioTracks = manifest.files.filter((item) => item.mimeType.startsWith('audio/')).map((item) => item.name);
-    const subtitleTracks = manifest.files.filter((item) => /\.(srt|vtt|ass|ssa)$/i.test(item.name)).map((item) => item.name);
-    const local = selectSubtitleFiles(manifest.files); const existing = new Set(local.map((item) => item.lang));
+    const audioTracks = files.filter((item) => item.mimeType?.startsWith('audio/')).map((item) => item.name);
+    const subtitleTracks = files.filter((item) => /\.(srt|vtt|ass|ssa)$/i.test(item.name)).map((item) => item.name);
+    const local = selectSubtitleFiles(files); const existing = new Set(local.map((item) => item.lang));
     const subtitles: SubtitleTrack[] = local.map((item, index) => ({ lang: item.lang, label: item.label, isDefault: item.lang === 'ara' || (!existing.has('ara') && item.lang === 'eng' && index === 0), url: `/v1/subtitles/${manifest.infoHash}/${item.file.index}`, source: 'torrent' as const, fileIndex: item.file.index }));
     if (query.type !== 'music' && !subtitles.length) {
       try {
@@ -38,6 +40,6 @@ export class StreamResolver {
       } catch { /* optional provider failure does not break torrent playback */ }
     }
     const defaultIndex = subtitles.findIndex((item) => item.lang === 'ara'); if (defaultIndex >= 0) subtitles.forEach((item, index) => { item.isDefault = index === defaultIndex; });
-    return { sourceType: 'torrent', subtitles, candidate, infoHash: manifest.infoHash, streamId: handle.streamId, streamUrl: `/v1/torrents/${manifest.infoHash}/files/${file.index}/stream`, fileIndex: file.index, files: manifest.files, quality: candidate.quality, audioTracks, subtitleTracks };
+    return { sourceType: 'torrent', subtitles, candidate, infoHash: manifest.infoHash, streamId: handle.streamId, streamUrl: `/v1/torrents/${manifest.infoHash}/files/${file.index}/stream`, fileIndex: file.index, files, quality: candidate.quality, audioTracks, subtitleTracks };
   }
 }

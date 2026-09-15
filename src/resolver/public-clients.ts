@@ -8,7 +8,7 @@ function magnet(hash: string, name: string): string { if (!/^(?:[a-f0-9]{40}|[a-
 function normalizeMagnet(value: string, name: string): string { const decoded = decodeURIComponent(value); const match = decoded.match(/[?&]xt=urn:btih:([a-f0-9]{40}|[a-z2-7]{32})/i); return match?.[1] ? magnet(match[1], name) : ''; }
 function isVideo(query: ResolverQuery): boolean { return query.type !== 'music'; }
 export function seriesQueryVariants(query: ResolverQuery): string[] { const base = query.title ?? query.query ?? ''; if (query.season === undefined || query.episode === undefined) return [queryText(query)]; const s = query.season; const e = query.episode; return [...new Set([`${base} S${String(s).padStart(2, '0')}E${String(e).padStart(2, '0')}`, `${base} S${s} E${e}`, `${base} Season ${s} Episode ${e}`])]; }
-export function parseTorrentioSeeders(name?: string, title?: string): number { const text = [name, title].filter(Boolean).join('\n'); const matches = [...text.matchAll(/(?:👤|seed(?:s|ers)?\s*[:=]?)[^0-9]{0,12}(\d+)|\b(\d+)\s*seed(?:s|ers)?\b/gi)].map((match) => Number(match[1] ?? match[2])).filter(Number.isFinite); return matches.length ? Math.max(...matches) : 0; }
+export function parseTorrentioSeeders(name?: string, title?: string, description?: string): number { const text = [name, title, description].filter((value): value is string => Boolean(value)).join('\n'); const matches = [...text.matchAll(/(?:👤|seed(?:s|ers)?\s*[:=]?)[^0-9]{0,12}(\d+)|\b(\d+)\s*seed(?:s|ers)?\b/gi)].map((match) => Number(match[1] ?? match[2])).filter(Number.isFinite); return matches.length ? Math.max(...matches) : 0; }
 function parseHtmlResults(html: string, source: string, fallback: string): TorrentCandidate[] {
   const results: TorrentCandidate[] = []; const seen = new Set<string>();
   const magnetPattern = /magnet:\?[^"'<>\s]+/gi;
@@ -51,8 +51,8 @@ export class TorrentioClient implements IndexerClient {
       if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 250));
     }
     if (!response?.ok) throw lastError instanceof Error ? lastError : new Error('Torrentio request failed');
-    const payload = await response.json() as { streams?: Array<{ name?: string; title?: string; url?: string; infoHash?: string }> };
-    return (payload.streams ?? []).map((stream) => { const title = [stream.name, stream.title].filter(Boolean).join('\n') || 'Torrentio result'; const hash = stream.infoHash ?? stream.url?.match(/urn:btih:([^&/]+)/i)?.[1]; const candidateMagnet = hash ? magnet(hash, title) : (stream.url?.startsWith('magnet:?') ? normalizeMagnet(stream.url, title) : ''); return { magnet: candidateMagnet, title, seeders: parseTorrentioSeeders(stream.name, stream.title), source: 'torrentio' }; }).filter((candidate) => candidate.magnet);
+    const payload = await response.json() as { streams?: Array<{ name?: string; title?: string; description?: string; url?: string; infoHash?: string }> };
+    return (payload.streams ?? []).map((stream) => { const title = [stream.name, stream.title, stream.description].filter(Boolean).join('\n') || 'Torrentio result'; const hash = stream.infoHash ?? stream.url?.match(/urn:btih:([^&/]+)/i)?.[1]; const candidateMagnet = hash ? magnet(hash, title) : (stream.url?.startsWith('magnet:?') ? normalizeMagnet(stream.url, title) : ''); const parsedSeeders = parseTorrentioSeeders(stream.name, stream.title, stream.description); return { magnet: candidateMagnet, title, seeders: parsedSeeders > 0 ? parsedSeeders : 1, source: 'torrentio' }; }).filter((candidate) => candidate.magnet);
   }
 }
 
