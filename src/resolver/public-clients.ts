@@ -3,6 +3,8 @@ import { ResolverQuery, TorrentCandidate } from './types.js';
 import { queryText } from './ranking.js';
 
 const TRACKERS = ['udp://open.stealth.si:80/announce', 'udp://tracker.opentrackr.org:1337/announce', 'udp://tracker.openbittorrent.com:6969/announce'];
+const resolverDebug = process.env.RESOLVER_DEBUG === 'true';
+function debug(event: string, data: Record<string, unknown>): void { if (resolverDebug) console.log(JSON.stringify({ scope: 'resolver', event, ...data })); }
 function timeoutSignal(ms: number, signal?: AbortSignal): AbortSignal { const timeout = AbortSignal.timeout(ms); return signal ? AbortSignal.any([signal, timeout]) : timeout; }
 function magnet(hash: string, name: string): string { if (!/^(?:[a-f0-9]{40}|[a-z2-7]{32})$/i.test(hash)) return ''; const params = [`xt=urn:btih:${hash}`, `dn=${encodeURIComponent(name)}`]; for (const tracker of TRACKERS) params.push(`tr=${encodeURIComponent(tracker)}`); return `magnet:?${params.join('&')}`; }
 function normalizeMagnet(value: string, name: string): string { const decoded = decodeURIComponent(value); const match = decoded.match(/[?&]xt=urn:btih:([a-f0-9]{40}|[a-z2-7]{32})/i); return match?.[1] ? magnet(match[1], name) : ''; }
@@ -41,18 +43,31 @@ export class TorrentioClient implements IndexerClient {
     const suffix = kind === 'series' ? `:${query.season ?? 1}:${query.episode ?? 1}` : '';
     const url = `${this.baseUrl}/stream/${kind}/${id}${suffix}.json`;
     let response: Response | undefined;
+    let responseBody = '';
     let lastError: unknown;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    const urls = [url];
+    if (kind === 'series' && query.season !== undefined && query.episode !== undefined) urls.push(`${this.baseUrl}/stream/series/${id}:${String(query.season).padStart(2, '0')}:${String(query.episode).padStart(2, '0')}.json`);
+    for (const requestUrl of urls) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+      debug('torrentio_request_start', { url: requestUrl, attempt: attempt + 1, type: query.type ?? 'movie', imdbId: query.imdb_id, season: query.season, episode: query.episode });
       try {
-        response = await fetch(url, { signal: timeoutSignal(Math.max(this.timeoutMs, 8000), signal), headers: { accept: 'application/json' } });
+        response = await fetch(requestUrl, { signal: timeoutSignal(Math.max(this.timeoutMs, 8000), signal), headers: { accept: 'application/json' } });
+        responseBody = await response.text();
+        debug('torrentio_response', { url: requestUrl, attempt: attempt + 1, status: response.status, bytes: responseBody.length, preview: responseBody.slice(0, 180) });
         if (response.ok) break;
         lastError = new Error(`Torrentio HTTP ${response.status}`);
-      } catch (error) { lastError = error; }
+        response = undefined;
+        continue;
+      } catch (error) { lastError = error; debug('torrentio_request_error', { url: requestUrl, attempt: attempt + 1, error: String(error) }); }
       if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      if (response?.ok) break;
     }
     if (!response?.ok) throw lastError instanceof Error ? lastError : new Error('Torrentio request failed');
-    const payload = await response.json() as { streams?: Array<{ name?: string; title?: string; description?: string; url?: string; infoHash?: string }> };
-    return (payload.streams ?? []).map((stream) => { const title = [stream.name, stream.title, stream.description].filter(Boolean).join('\n') || 'Torrentio result'; const hash = stream.infoHash ?? stream.url?.match(/urn:btih:([^&/]+)/i)?.[1]; const candidateMagnet = hash ? magnet(hash, title) : (stream.url?.startsWith('magnet:?') ? normalizeMagnet(stream.url, title) : ''); const parsedSeeders = parseTorrentioSeeders(stream.name, stream.title, stream.description); return { magnet: candidateMagnet, title, seeders: parsedSeeders > 0 ? parsedSeeders : 1, source: 'torrentio' }; }).filter((candidate) => candidate.magnet);
+    const payload = JSON.parse(responseBody) as { streams?: Array<{ name?: string; title?: string; description?: string; url?: string; infoHash?: string }> };
+    const candidates = (payload.streams ?? []).map((stream) => { const title = [stream.name, stream.title, stream.description].filter(Boolean).join('\n') || 'Torrentio result'; const hash = stream.infoHash ?? stream.url?.match(/urn:btih:([^&/]+)/i)?.[1]; const candidateMagnet = hash ? magnet(hash, title) : (stream.url?.startsWith('magnet:?') ? normalizeMagnet(stream.url, title) : ''); const parsedSeeders = parseTorrentioSeeders(stream.name, stream.title, stream.description); return { magnet: candidateMagnet, title, seeders: parsedSeeders > 0 ? parsedSeeders : 1, source: 'torrentio' }; }).filter((candidate) => candidate.magnet);
+    debug('torrentio_candidates', { count: candidates.length, seeders: candidates.slice(0, 10).map((candidate) => candidate.seeders) });
+    return candidates;
   }
 }
 
@@ -71,7 +86,7 @@ export class AudioPublicClient implements IndexerClient {
 
 export class MultiIndexerClient implements IndexerClient {
   constructor(private readonly clients: IndexerClient[]) {}
-  async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> { const settled = await Promise.allSettled(this.clients.map((client) => client.search(query, signal))); return settled.flatMap((result) => result.status === 'fulfilled' ? result.value : []); }
+  async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> { const settled = await Promise.allSettled(this.clients.map((client) => client.search(query, signal))); const results = settled.flatMap((result, index) => { if (result.status === 'fulfilled') { debug('indexer_result', { index, count: result.value.length, seeders: result.value.slice(0, 5).map((candidate) => candidate.seeders) }); return result.value; } debug('indexer_error', { index, error: String(result.reason) }); return []; }); debug('indexer_aggregate', { count: results.length }); return results; }
 }
 export function createPublicIndexer(timeoutMs = 3000): IndexerClient { return new MultiIndexerClient([new YtsClient(undefined, timeoutMs), new TorrentioClient(undefined, timeoutMs), new X1337Client(timeoutMs), new EztvClient(timeoutMs), new TorrentGalaxyClient(timeoutMs), new AudioPublicClient(undefined, timeoutMs)]); }
 export function buildPublicQuery(query: ResolverQuery): string { return queryText(query); }

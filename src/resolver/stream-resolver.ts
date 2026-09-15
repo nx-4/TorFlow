@@ -6,16 +6,19 @@ import { OpenSubtitlesClient } from './subtitles.js';
 import { RankedCandidate, ResolverQuery, ResolverResult } from './types.js';
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> { return Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs))]); }
+const resolverDebug = process.env.RESOLVER_DEBUG === 'true';
 
 export class StreamResolver {
   constructor(private readonly indexer: IndexerClient, private readonly engine: TorrentEngine, private readonly perCandidateTimeoutMs = 5000, private readonly subtitleClient = new OpenSubtitlesClient()) {}
 
   async findStream(query: ResolverQuery): Promise<ResolverResult> {
     if (!(query.title?.trim() || query.query?.trim() || query.artist?.trim() || query.album?.trim() || query.track?.trim() || query.imdb_id || query.tmdb_id)) throw new Error('title, query, artist, album, track, imdb_id, or tmdb_id is required');
-    const ranked = rankCandidates(await this.indexer.search(query), query);
+    const candidates = await this.indexer.search(query);
+    if (resolverDebug) console.log(JSON.stringify({ scope: 'resolver', event: 'rank_input', type: query.type, count: candidates.length, seeders: candidates.slice(0, 10).map((candidate) => candidate.seeders) }));
+    const ranked = rankCandidates(candidates, query);
     if (!ranked.length) throw new Error(`No healthy torrent found (seeders must be >= ${query.type === 'music' ? 2 : 1})`);
     const failures: string[] = [];
-    for (const candidate of ranked) { try { const result = await withTimeout(this.tryCandidate(candidate, query), this.perCandidateTimeoutMs, 'candidate timeout'); return { ...result, attempted: failures.length + 1 }; } catch (error) { failures.push(`${candidate.title}: ${(error as Error).message}`); } }
+    for (const candidate of ranked) { try { const result = await withTimeout(this.tryCandidate(candidate, query), this.perCandidateTimeoutMs, 'candidate timeout'); return { ...result, attempted: failures.length + 1 }; } catch (error) { if (resolverDebug) console.log(JSON.stringify({ scope: 'resolver', event: 'candidate_failure', source: candidate.source, seeders: candidate.seeders, error: String(error) })); failures.push(`${candidate.title}: ${(error as Error).message}`); } }
     throw new Error(`All ranked torrent candidates failed: ${failures.join('; ')}`);
   }
 
