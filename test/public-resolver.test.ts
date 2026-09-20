@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MultiIndexerClient, YtsClient, seriesQueryVariants } from '../src/resolver/public-clients.js';
+import { MultiIndexerClient, TorrentioClient, YtsClient, seriesQueryVariants } from '../src/resolver/public-clients.js';
 
 describe('public resolver adapters', () => {
   it('builds multiple season and episode query formats', () => {
@@ -18,5 +18,14 @@ describe('public resolver adapters', () => {
     const failing = { search: async () => { throw new Error('timeout'); } };
     const results = await new MultiIndexerClient([failing, working]).search({ title: 'Dune' });
     expect(results).toHaveLength(1);
+  });
+
+  it('resolves series streams using the canonical episode URL', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ streams: [{ name: 'Torrentio 1080p', title: 'Squid Game S01E01 1080p x264 👤 63', infoHash: '0123456789abcdef0123456789abcdef01234567' }] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const results = await new TorrentioClient('https://torrentio.example', 100).search({ type: 'series', title: 'Squid Game', season: 1, episode: 1, imdb_id: 'tt10919420' });
+    expect(results[0]).toMatchObject({ seeders: 63, source: 'torrentio' });
+    expect(String((fetchMock.mock.calls as unknown as Array<Array<unknown>>)[0]?.[0])).toContain('/stream/series/tt10919420:1:1.json');
+    vi.unstubAllGlobals();
   });
 });

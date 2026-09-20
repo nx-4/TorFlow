@@ -46,7 +46,14 @@ export class TorrentioClient implements IndexerClient {
     let responseBody = '';
     let lastError: unknown;
     const urls = [url];
-    if (kind === 'series' && query.season !== undefined && query.episode !== undefined) urls.push(`${this.baseUrl}/stream/series/${id}:${String(query.season).padStart(2, '0')}:${String(query.episode).padStart(2, '0')}.json`);
+    if (kind === 'series' && query.season !== undefined && query.episode !== undefined) {
+      const padded = `${this.baseUrl}/stream/series/${id}:${String(query.season).padStart(2, '0')}:${String(query.episode).padStart(2, '0')}.json`;
+      urls.push(padded);
+      if (query.title || query.query) {
+        const titleId = encodeURIComponent(query.title ?? query.query ?? '');
+        urls.push(`${this.baseUrl}/stream/series/${titleId}:${query.season}:${query.episode}.json`);
+      }
+    }
     for (const requestUrl of urls) {
       for (let attempt = 0; attempt < 2; attempt += 1) {
       debug('torrentio_request_start', { url: requestUrl, attempt: attempt + 1, type: query.type ?? 'movie', imdbId: query.imdb_id, season: query.season, episode: query.episode });
