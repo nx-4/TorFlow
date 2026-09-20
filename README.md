@@ -78,8 +78,8 @@ See [API.md](./API.md) for complete request/response schemas.
 ## Deployment
 
 ```bash
-docker build -t streamix-hub .
-docker run --rm -p 8080:8080 --env-file .env streamix-hub
+docker build -t torflow .
+docker run --rm -p 8080:8080 --env-file .env torflow
 ```
 
 For Render, connect the repository and use the included `render.yaml`. Set `ALLOWED_ORIGINS` to a comma-separated list of trusted web origins; use `*` only for public development APIs.

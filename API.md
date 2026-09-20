@@ -76,6 +76,6 @@ Public providers are queried in parallel with a maximum 3-second timeout per pro
 
 ## Deployment
 
-- Docker: `docker build -t streamix-hub . && docker run --rm -p 8080:8080 --env-file .env streamix-hub`
+- Docker: `docker build -t torflow . && docker run --rm -p 8080:8080 --env-file .env torflow`
 - Render: connect the repository and use `render.yaml`.
 - Railway/VPS: `npm ci --omit=dev && npm run build && npm start`.

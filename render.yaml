@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: streamix-hub
+    name: torflow
     runtime: docker
     plan: free
     branch: master
@@ -12,6 +12,6 @@ services:
       - key: ALLOWED_ORIGINS
         value: '*'
       - key: CACHE_DIR
-        value: /tmp/streamix-cache
+        value: /tmp/torflow-cache
       - key: PORT
         value: '8080'
