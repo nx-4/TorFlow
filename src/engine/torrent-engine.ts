@@ -37,6 +37,7 @@ export class TorrentEngine extends EventEmitter {
   }
   registerParsedManifest(manifest: TorrentManifest): void { this.manifests.set(manifest.infoHash, manifest); }
   getManifest(infoHash: string): TorrentManifest | undefined { return this.manifests.get(infoHash); }
+  async destroyTorrent(infoHash: string): Promise<void> { const torrent = this.torrents.get(infoHash); this.torrents.delete(infoHash); this.manifests.delete(infoHash); if (torrent) await new Promise<void>((resolve) => { try { torrent.destroy(() => resolve()); } catch { resolve(); } }); }
   async waitForPeers(infoHash: string, timeoutMs = 5000): Promise<void> { const torrent = this.torrents.get(infoHash); if (!torrent) return; const deadline = Date.now() + timeoutMs; while (torrent.numPeers < 1 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 100)); if (torrent.numPeers < 1) throw new Error('No active peers available'); }
   async verifyDataFlow(infoHash: string, fileIndex: number, timeoutMs = 5000): Promise<number> {
     const manifest = this.manifests.get(infoHash); const torrent = this.torrents.get(infoHash); const file = manifest?.files[fileIndex]; const sourceFile = torrent?.files[fileIndex];

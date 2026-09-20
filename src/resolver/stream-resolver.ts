@@ -32,16 +32,18 @@ export class StreamResolver {
   }
 
   private async tryCandidate(candidate: RankedCandidate, query: ResolverQuery): Promise<Omit<ResolverResult, 'attempted'>> {
-    const manifest = await this.engine.registerManifest({ magnet: candidate.magnet });
-    const files = Array.isArray(manifest.files) ? manifest.files : [];
-    if (!manifest.infoHash || !files.length) throw new Error('Torrent metadata contains no files');
-    await this.engine.waitForPeers(manifest.infoHash, Math.min(2500, this.perCandidateTimeoutMs - 250));
-    const audioExtensions = /\.(mp3|flac|m4a|aac|wav|ogg|opus|alac)$/i;
-    const file = query.type === 'music' ? files.find((item) => audioExtensions.test(item.name) || item.mimeType?.startsWith('audio/')) : files.find((item) => item.mimeType?.startsWith('video/') || item.mimeType?.startsWith('audio/')) ?? files[0];
-    if (!file) throw new Error('Torrent contains no playable media file');
-    if (!matchesRequestedContent(query, `${candidate.title} ${manifest.name}`, files)) throw new Error('Torrent content does not match the requested title, season, or episode');
-    await this.engine.verifyDataFlow(manifest.infoHash, file.index, Math.min(5000, Math.max(1000, this.perCandidateTimeoutMs - 250)));
-    const handle = await this.engine.openStream(manifest.infoHash, file.index);
+    let infoHash: string | undefined;
+    try {
+      const manifest = await this.engine.registerManifest({ magnet: candidate.magnet }); infoHash = manifest.infoHash;
+      const files = Array.isArray(manifest.files) ? manifest.files : [];
+      if (!manifest.infoHash || !files.length) throw new Error('Torrent metadata contains no files');
+      await this.engine.waitForPeers(manifest.infoHash, Math.min(2500, this.perCandidateTimeoutMs - 250));
+      const audioExtensions = /\.(mp3|flac|m4a|aac|wav|ogg|opus|alac)$/i;
+      const file = query.type === 'music' ? files.find((item) => audioExtensions.test(item.name) || item.mimeType?.startsWith('audio/')) : files.find((item) => item.mimeType?.startsWith('video/') || item.mimeType?.startsWith('audio/')) ?? files[0];
+      if (!file) throw new Error('Torrent contains no playable media file');
+      if (!matchesRequestedContent(query, `${candidate.title} ${manifest.name}`, files)) throw new Error('Torrent content does not match the requested title, season, or episode');
+      await this.engine.verifyDataFlow(manifest.infoHash, file.index, Math.min(5000, Math.max(1000, this.perCandidateTimeoutMs - 250)));
+      const handle = await this.engine.openStream(manifest.infoHash, file.index);
     const audioTracks = files.filter((item) => item.mimeType?.startsWith('audio/')).map((item) => item.name);
     const subtitleTracks = files.filter((item) => /\.(srt|vtt|ass|ssa)$/i.test(item.name)).map((item) => item.name);
     const local = selectSubtitleFiles(files); const existing = new Set(local.map((item) => item.lang));
@@ -54,6 +56,7 @@ export class StreamResolver {
       } catch { /* optional provider failure does not break torrent playback */ }
     }
     const defaultIndex = subtitles.findIndex((item) => item.lang === 'ara'); if (defaultIndex >= 0) subtitles.forEach((item, index) => { item.isDefault = index === defaultIndex; });
-    return { sourceType: 'torrent', subtitles, candidate, infoHash: manifest.infoHash, streamId: handle.streamId, streamUrl: `/v1/torrents/${manifest.infoHash}/files/${file.index}/stream`, fileIndex: file.index, files, quality: candidate.quality, audioTracks, subtitleTracks };
+      return { sourceType: 'torrent', subtitles, candidate, infoHash: manifest.infoHash, streamId: handle.streamId, streamUrl: `/v1/torrents/${manifest.infoHash}/files/${file.index}/stream`, fileIndex: file.index, files, quality: candidate.quality, audioTracks, subtitleTracks };
+    } catch (error) { if (infoHash) await this.engine.destroyTorrent(infoHash); throw error; }
   }
 }
