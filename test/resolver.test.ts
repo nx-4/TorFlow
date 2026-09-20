@@ -67,7 +67,7 @@ describe('music resolver', () => {
         { index: 1, path: 'track.flac', name: 'track.flac', size: 100, mimeType: 'audio/flac', offset: 10, selected: false },
       ] }), waitForPeers: async () => undefined, verifyDataFlow: async () => 1024, openStream: async (_hash: string, fileIndex: number) => ({ streamId: `audio_stream_${fileIndex}` }),
     } as never;
-    const resolver = new StreamResolver(new StaticIndexerClient([{ magnet: 'magnet:?xt=urn:btih:flac', title: 'Discovery FLAC', seeders: 40 }]), engine, 500);
+    const resolver = new StreamResolver(new StaticIndexerClient([{ magnet: 'magnet:?xt=urn:btih:flac', title: 'Daft Punk Discovery FLAC', seeders: 40 }]), engine, 500);
     const result = await resolver.findStream({ type: 'music', artist: 'Daft Punk', album: 'Discovery' });
     expect(result.fileIndex).toBe(1);
     expect(result.streamUrl).toBe('/v1/torrents/audio-hash/files/1/stream');
@@ -145,5 +145,13 @@ describe('enhancement modules', () => {
     const fallback = { search: async () => [{ lang: 'ita', label: 'Italiano', isDefault: false, url: 'https://subs.example/it.vtt', source: 'opensubtitles' as const }] };
     const tracks = await new OpenSubtitlesClient(undefined, undefined, 1000, fallback).search({ title: 'Dune', imdb_id: 'tt1160419' }, new Set());
     expect(tracks[0]).toMatchObject({ lang: 'ita', url: 'https://subs.example/it.vtt' });
+  });
+});
+
+
+describe('music content matching', () => {
+  it('matches artist and album without applying video rules', () => {
+    expect(matchesRequestedContent({ type: 'music', artist: 'Daft Punk', album: 'Discovery' }, 'Daft Punk Discovery FLAC', [])).toBe(true);
+    expect(matchesRequestedContent({ type: 'music', artist: 'Daft Punk', album: 'Discovery' }, 'Other Artist Random Album FLAC', [])).toBe(false);
   });
 });

@@ -6,6 +6,13 @@ function titleMatches(text: string, requested: string): boolean { const haystack
 export function matchesRequestedContent(query: ResolverQuery, candidateTitle: string, files: Array<{ name?: string; path?: string }> = []): boolean {
   const text = [candidateTitle, ...files.flatMap((file) => [file.name, file.path])].filter((value): value is string => Boolean(value)).join(' ');
   const requestedTitle = query.title ?? query.query ?? '';
+  if (query.type === 'music') {
+    const requestedParts = [query.artist, query.album, query.track, requestedTitle].filter((value): value is string => Boolean(value?.trim()));
+    if (requestedParts.length && !requestedParts.some((part) => titleMatches(text, part))) return false;
+    if (query.artist && !titleMatches(text, query.artist) && query.album && !titleMatches(text, query.album)) return false;
+    if (query.track && !titleMatches(text, query.track)) return false;
+    return true;
+  }
   if (requestedTitle && !titleMatches(text, requestedTitle)) return false;
   if (query.type === 'series' || query.season !== undefined || query.episode !== undefined) {
     if (query.season === undefined || query.episode === undefined) return false;

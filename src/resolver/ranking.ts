@@ -14,7 +14,7 @@ export function parseQuality(title: string): QualityMetadata {
 
 export function parseAudioQuality(title: string): QualityMetadata {
   const normalized = title.toLowerCase();
-  const audioFormat = normalized.includes('flac') ? 'flac' : normalized.includes('alac') ? 'alac' : normalized.includes('320') || normalized.includes('320kbps') ? 'mp3-320' : normalized.includes('aac') ? 'aac' : normalized.includes('opus') ? 'opus' : normalized.includes('wav') ? 'wav' : 'unknown';
+  const audioFormat = normalized.includes('flac') ? 'flac' : normalized.includes('alac') ? 'alac' : normalized.includes('320') || normalized.includes('320kbps') ? 'mp3-320' : normalized.includes('aac') || normalized.includes('m4a') ? 'aac' : normalized.includes('opus') || normalized.includes('ogg') ? 'opus' : normalized.includes('wav') ? 'wav' : normalized.includes('mp3') ? 'mp3-320' : 'unknown';
   const bitrateMatch = normalized.match(/(\d{2,4})\s*kbps/);
   const bitrateKbps = bitrateMatch ? Number(bitrateMatch[1]) : audioFormat === 'mp3-320' ? 320 : undefined;
   const formatScore: Record<NonNullable<QualityMetadata['audioFormat']>, number> = { flac: 60, alac: 55, 'mp3-320': 48, aac: 36, opus: 34, wav: 52, unknown: 0 };
