@@ -1,10 +1,10 @@
-# fly.toml app configuration file generated for torflow on 2026-09-13T22:58:50Z
+# fly.toml app configuration file generated for torflow on 2026-09-20T11:46:22Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
 app = 'torflow'
-primary_region = 'fra'
+primary_region = 'ams'
 
 [build]
 
