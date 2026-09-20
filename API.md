@@ -1,6 +1,6 @@
-# Streamix_Hub API
+# TorFlow API
 
-Streamix_Hub is a live WebTorrent-to-HTTP engine. It joins a WebTorrent swarm, resolves metadata, ranks healthy indexer results, prioritizes playback pieces, and streams physical file bytes through HTTP Range.
+TorFlow is a live WebTorrent-to-HTTP engine. It joins a WebTorrent swarm, resolves metadata, ranks healthy indexer results, prioritizes playback pieces, and streams physical file bytes through HTTP Range.
 
 ## Configuration
 
@@ -64,7 +64,7 @@ Resolver responses include a prioritized `subtitles` array. Arabic (`ara`) is se
 
 When `OPENSUBTITLES_API_KEY` is configured, missing Arabic or major-language tracks are queried from the OpenSubtitles REST API using IMDb/TMDB and season/episode identifiers. The server then requests a VTT download link and appends it to the response. Arabic is forced to `isDefault: true` whenever available. Without the key, the engine still serves all subtitles found inside the torrent, but cannot provide external fallback tracks.
 
-Public providers are queried in parallel with a maximum 3-second timeout per provider. Video candidates with at least 1 seeder are eligible; music candidates require at least 2. Streamix_Hub is strictly torrent-only: every successful response has `sourceType: "torrent"`; if no healthy torrent remains or all candidates fail, the API returns `404` with `code: "NO_HEALTHY_TORRENT"`. No third-party ad-supported embed URL is returned.
+Public providers are queried in parallel with a maximum 3-second timeout per provider. Video candidates with at least 1 seeder are eligible; music candidates require at least 2. TorFlow is strictly torrent-only: every successful response has `sourceType: "torrent"`; if no healthy torrent remains or all candidates fail, the API returns `404` with `code: "NO_HEALTHY_TORRENT"`. No third-party ad-supported embed URL is returned.
 
 ## Metadata and streaming
 
