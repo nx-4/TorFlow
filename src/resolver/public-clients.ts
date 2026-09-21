@@ -2,7 +2,7 @@ import { IndexerClient } from './torznab-client.js';
 import { ResolverQuery, TorrentCandidate } from './types.js';
 import { queryText } from './ranking.js';
 
-const TRACKERS = ['udp://open.stealth.si:80/announce', 'udp://tracker.opentrackr.org:1337/announce', 'udp://tracker.openbittorrent.com:6969/announce'];
+const TRACKERS = ['udp://open.stealth.si:80/announce', 'udp://tracker.opentrackr.org:1337/announce', 'udp://tracker.openbittorrent.com:6969/announce', 'udp://tracker.torrent.eu.org:451/announce', 'udp://tracker.dler.org:6969/announce', 'udp://exodus.desync.com:6969/announce'];
 const resolverDebug = process.env.RESOLVER_DEBUG === 'true';
 function debug(event: string, data: Record<string, unknown>): void { if (resolverDebug) console.log(JSON.stringify({ scope: 'resolver', event, ...data })); }
 function timeoutSignal(ms: number, signal?: AbortSignal): AbortSignal { const timeout = AbortSignal.timeout(ms); return signal ? AbortSignal.any([signal, timeout]) : timeout; }

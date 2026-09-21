@@ -24,7 +24,7 @@ export class TorrentEngine extends EventEmitter {
     return new Promise((resolve, reject) => {
       let settled = false; let activeTorrent: WebTorrentTorrent | undefined;
       const clientError = (error: Error) => finish(error);
-      const timer = setTimeout(() => { try { activeTorrent?.destroy(); } catch {} finish(new Error('WebTorrent metadata timeout: no metadata received from the swarm')); }, 5000);
+      const timer = setTimeout(() => { try { activeTorrent?.destroy(); } catch {} finish(new Error('WebTorrent metadata timeout: no metadata received from the swarm')); }, 10000);
       const finish = (error?: Error, torrent?: WebTorrentTorrent) => {
         if (settled) return; clearTimeout(timer); this.client.off?.('error', clientError);
         if (error || !torrent) { settled = true; reject(error ?? new Error('WebTorrent did not return metadata')); return; }

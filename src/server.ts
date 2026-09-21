@@ -30,7 +30,7 @@ export async function buildApp() {
   const publicIndexer = createPublicIndexer(Math.min(config.resolverTimeoutMs, 5000));
   const indexer = config.indexerUrl && config.indexerApiKey ? new MultiIndexerClient([publicIndexer, new TorznabClient(config.indexerUrl, config.indexerApiKey, config.resolverTimeoutMs)]) : publicIndexer;
   const resolutionCache = config.resolutionCacheEnabled ? new ResolutionCache<ResolverResult>(Math.min(config.resolutionCacheTtlSeconds, 7200) * 1000, config.resolutionCacheMaxEntries) : undefined;
-  const resolver = new StreamResolver(indexer, engine, Math.min(config.resolverTimeoutMs, 8000), new OpenSubtitlesClient(config.openSubtitlesApiKey), resolutionCache, new HlsSource());
+  const resolver = new StreamResolver(indexer, engine, Math.min(config.resolverTimeoutMs, 15000), new OpenSubtitlesClient(config.openSubtitlesApiKey), resolutionCache, new HlsSource());
   await registerRoutes(app, engine, resolver);
   app.decorate('streamix', { engine, cache, config });
   return app;

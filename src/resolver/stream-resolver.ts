@@ -37,7 +37,7 @@ export class StreamResolver {
       const manifest = await this.engine.registerManifest({ magnet: candidate.magnet }); infoHash = manifest.infoHash;
       const files = Array.isArray(manifest.files) ? manifest.files : [];
       if (!manifest.infoHash || !files.length) throw new Error('Torrent metadata contains no files');
-      await this.engine.waitForPeers(manifest.infoHash, Math.min(2500, this.perCandidateTimeoutMs - 250));
+    await this.engine.waitForPeers(manifest.infoHash, Math.min(4000, Math.max(1000, this.perCandidateTimeoutMs - 500)));
       const audioExtensions = /\.(mp3|flac|m4a|aac|wav|ogg|opus|alac)$/i;
       const file = query.type === 'music' ? files.find((item) => audioExtensions.test(item.name) || item.mimeType?.startsWith('audio/')) : files.find((item) => item.mimeType?.startsWith('video/') || item.mimeType?.startsWith('audio/')) ?? files[0];
       if (!file) throw new Error('Torrent contains no playable media file');
