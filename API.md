@@ -20,6 +20,20 @@ TV example:
 { "title": "The Last of Us", "season": 1, "episode": 3, "imdb_id": "tt3581920" }
 ```
 
+Anime and cartoon content uses these same requests: an anime film is sent as a normal movie query, and an anime/cartoon episode is sent as a normal series query. There is no separate `anime` type or endpoint.
+
+Anime film example:
+
+```json
+{ "type": "movie", "title": "Your Name", "year": 2016, "imdb_id": "tt5311514" }
+```
+
+Anime series example:
+
+```json
+{ "type": "series", "title": "Attack on Titan", "season": 1, "episode": 1, "imdb_id": "tt2560140" }
+```
+
 Music example:
 
 ```json

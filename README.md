@@ -104,6 +104,8 @@ const playableUrl = new URL(data.streamUrl, 'https://api.example.com').toString(
 
 For series, send `season`, `episode`, and optionally `imdb_id`. The resolver filters out torrents below 5 seeders, prefers H.264/x264 and mobile-friendly audio, ranks by seed health plus quality, and retries the next candidate when metadata or peers do not arrive within `RESOLVER_TIMEOUT_MS`.
 
+Anime and cartoon titles use the same media types: send an anime film with `type: "movie"`, and send an anime/cartoon episode with `type: "series"` plus `season` and `episode`. No separate anime endpoint or special request type is required.
+
 For music, send `type: "music"` with any combination of generic query, artist, album, and track. Audio requires at least 2 seeders while movies and series require at least 1; if the detailed search is empty or unhealthy, the public adapter retries with a broader query. The audio ranking prefers lossless FLAC/ALAC/WAV, then 320kbps MP3, AAC, and Opus, and chooses the best playable audio file inside the selected torrent. Set `OPENSUBTITLES_API_KEY` to attach Arabic-first external VTT subtitles when a torrent does not contain them:
 
 ```ts

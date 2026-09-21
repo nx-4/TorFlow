@@ -155,3 +155,10 @@ describe('music content matching', () => {
     expect(matchesRequestedContent({ type: 'music', artist: 'Daft Punk', album: 'Discovery' }, 'Other Artist Random Album FLAC', [])).toBe(false);
   });
 });
+
+describe('anime uses standard media types', () => {
+  it('matches anime films as movie and anime episodes as series', () => {
+    expect(matchesRequestedContent({ type: 'movie', title: 'Your Name', year: 2016 }, 'Your Name 2016 1080p', [])).toBe(true);
+    expect(matchesRequestedContent({ type: 'series', title: 'Attack on Titan', season: 1, episode: 1 }, 'Attack on Titan S01E01 1080p', [])).toBe(true);
+  });
+});
