@@ -162,3 +162,24 @@ describe('anime uses standard media types', () => {
     expect(matchesRequestedContent({ type: 'series', title: 'Attack on Titan', season: 1, episode: 1 }, 'Attack on Titan S01E01 1080p', [])).toBe(true);
   });
 });
+
+
+describe('resolver performance safeguards', () => {
+  it('deduplicates concurrent identical resolver requests', async () => {
+    let searches = 0;
+    const indexer = { search: async () => { searches += 1; await new Promise((resolve) => setTimeout(resolve, 20)); return [{ magnet: 'magnet:?xt=urn:btih:dedupe', title: 'Movie 1080p x264', seeders: 20 }]; } };
+    const engine = {
+      registerManifest: async () => ({ ...manifest('dedupe-hash'), files: [{ ...manifest('dedupe-hash').files[0], name: 'Movie.mp4', path: 'Movie.mp4' }] }),
+      waitForPeers: async () => undefined,
+      verifyDataFlow: async () => 1024,
+      openStream: async () => ({ streamId: 'dedupe-stream' }),
+      getManifest: () => undefined,
+      destroyTorrent: async () => undefined,
+    } as never;
+    const resolver = new StreamResolver(indexer, engine, 1000);
+    const [first, second] = await Promise.all([resolver.findStream({ title: 'Movie' }), resolver.findStream({ title: 'Movie' })]);
+    expect(first.streamId).toBe('dedupe-stream');
+    expect(second.streamId).toBe('dedupe-stream');
+    expect(searches).toBe(1);
+  });
+});

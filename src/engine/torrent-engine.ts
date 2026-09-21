@@ -56,5 +56,5 @@ export class TorrentEngine extends EventEmitter {
   }
   private createTestReadable(streamId: string, file: FileManifest, range?: { start: number; end: number }): NodeJS.ReadableStream { const start = range?.start ?? 0; const end = Math.min(range?.end ?? file.size - 1, file.size - 1); const total = Math.max(0, end - start + 1); let sent = 0; const readable = new Readable({ read: () => { if (sent >= total) { readable.push(null); return; } const chunk = Buffer.alloc(Math.min(64 * 1024, total - sent)); sent += chunk.length; const status = this.streams.get(streamId); if (status) { status.phase = sent === total ? 'complete' : 'streaming'; status.downloaded = sent; status.progress = total ? sent / total : 1; status.bufferedBytes = Math.max(0, total - sent); status.updatedAt = new Date().toISOString(); this.emit('status', { ...status }); } readable.push(chunk); } }); return readable; }
   getStatus(streamId: string): StreamStatus | undefined { return this.streams.get(streamId) ? { ...this.streams.get(streamId)! } : undefined; }
-  async destroy(): Promise<void> { await new Promise<void>((resolve) => this.client.destroy(() => resolve())); }
+  async destroy(): Promise<void> { this.streams.clear(); this.manifests.clear(); this.torrents.clear(); await new Promise<void>((resolve) => this.client.destroy(() => resolve())); }
 }
