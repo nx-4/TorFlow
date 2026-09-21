@@ -28,4 +28,15 @@ describe('public resolver adapters', () => {
     expect(String((fetchMock.mock.calls as unknown as Array<Array<unknown>>)[0]?.[0])).toContain('/stream/series/tt10919420:1:1.json');
     vi.unstubAllGlobals();
   });
+
+  it('tries the next series URL when Torrentio returns an empty 200 response', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ streams: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ streams: [{ name: 'Torrentio', title: 'Attack on Titan S01E01 👤 150', infoHash: '0123456789abcdef0123456789abcdef01234567' }] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const results = await new TorrentioClient('https://torrentio.example', 100).search({ type: 'series', title: 'Attack on Titan', season: 1, episode: 1, imdb_id: 'tt2560140' });
+    expect(results).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.unstubAllGlobals();
+  });
 });

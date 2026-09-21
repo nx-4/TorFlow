@@ -61,7 +61,12 @@ export class TorrentioClient implements IndexerClient {
         response = await fetch(requestUrl, { signal: timeoutSignal(Math.max(this.timeoutMs, 8000), signal), headers: { accept: 'application/json' } });
         responseBody = await response.text();
         debug('torrentio_response', { url: requestUrl, attempt: attempt + 1, status: response.status, bytes: responseBody.length, preview: responseBody.slice(0, 180) });
-        if (response.ok) break;
+        if (response.ok) {
+          try { const parsed = JSON.parse(responseBody) as { streams?: unknown[] }; if ((parsed.streams ?? []).length > 0) break; }
+          catch { /* continue to the next URL variant */ }
+          response = undefined;
+          continue;
+        }
         lastError = new Error(`Torrentio HTTP ${response.status}`);
         response = undefined;
         continue;
