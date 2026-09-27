@@ -1,6 +1,6 @@
 import { IndexerClient } from './torznab-client.js';
 import { ResolverQuery, TorrentCandidate } from './types.js';
-import { queryText } from './ranking.js';
+import { queryText, cleanQueryTerm } from './ranking.js';
 
 const TRACKERS = ['udp://open.stealth.si:80/announce', 'udp://tracker.opentrackr.org:1337/announce', 'udp://tracker.openbittorrent.com:6969/announce', 'udp://tracker.torrent.eu.org:451/announce', 'udp://tracker.dler.org:6969/announce', 'udp://exodus.desync.com:6969/announce'];
 const resolverDebug = process.env.RESOLVER_DEBUG === 'true';
@@ -9,7 +9,19 @@ function timeoutSignal(ms: number, signal?: AbortSignal): AbortSignal { const ti
 function magnet(hash: string, name: string): string { if (!/^(?:[a-f0-9]{40}|[a-z2-7]{32})$/i.test(hash)) return ''; const params = [`xt=urn:btih:${hash}`, `dn=${encodeURIComponent(name)}`]; for (const tracker of TRACKERS) params.push(`tr=${encodeURIComponent(tracker)}`); return `magnet:?${params.join('&')}`; }
 function normalizeMagnet(value: string, name: string): string { const decoded = decodeURIComponent(value); const match = decoded.match(/[?&]xt=urn:btih:([a-f0-9]{40}|[a-z2-7]{32})/i); return match?.[1] ? magnet(match[1], name) : ''; }
 function isVideo(query: ResolverQuery): boolean { return query.type !== 'music'; }
-export function seriesQueryVariants(query: ResolverQuery): string[] { const base = query.title ?? query.query ?? ''; if (query.season === undefined || query.episode === undefined) return [queryText(query)]; const s = query.season; const e = query.episode; return [...new Set([`${base} S${String(s).padStart(2, '0')}E${String(e).padStart(2, '0')}`, `${base} S${s} E${e}`, `${base} Season ${s} Episode ${e}`])]; }
+export function seriesQueryVariants(query: ResolverQuery): string[] {
+  const base = cleanQueryTerm(query.title ?? query.query ?? '') || (query.title ?? query.query ?? '');
+  if (query.season === undefined || query.episode === undefined) return [queryText(query)];
+  const s = query.season;
+  const e = query.episode;
+  return [
+    ...new Set([
+      `${base} S${String(s).padStart(2, '0')}E${String(e).padStart(2, '0')}`,
+      `${base} S${s} E${e}`,
+      `${base} Season ${s} Episode ${e}`
+    ])
+  ];
+}
 export function parseTorrentioSeeders(name?: string, title?: string, description?: string): number { const text = [name, title, description].filter((value): value is string => Boolean(value)).join('\n'); const matches = [...text.matchAll(/(?:👤|seed(?:s|ers)?\s*[:=]?)[^0-9]{0,12}(\d+)|\b(\d+)\s*seed(?:s|ers)?\b/gi)].map((match) => Number(match[1] ?? match[2])).filter(Number.isFinite); return matches.length ? Math.max(...matches) : 0; }
 function parseHtmlResults(html: string, source: string, fallback: string): TorrentCandidate[] {
   const results: TorrentCandidate[] = []; const seen = new Set<string>();

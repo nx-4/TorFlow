@@ -26,7 +26,7 @@ export function streamController(engine: TorrentEngine) {
            .header('Cache-Control', 'no-store');
 
       if (range) {
-        reply.header('Content-Range', );
+        reply.header('Content-Range', `bytes ${start}-${end}/${handle.size}`);
         reply.code(206);
       } else {
         reply.code(200);

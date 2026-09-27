@@ -1,7 +1,7 @@
 import { TorrentEngine } from '../engine/torrent-engine.js';
 import { rankCandidates } from './ranking.js';
 import { IndexerClient } from './torznab-client.js';
-import { selectSubtitleFiles, SubtitleTrack } from './file-selector.js';
+import { selectSubtitleFiles, selectMediaFile, SubtitleTrack } from './file-selector.js';
 import { OpenSubtitlesClient } from './subtitles.js';
 import { RankedCandidate, ResolverQuery, ResolverResult } from './types.js';
 import { ResolutionCache, resolutionCacheKey } from './resolution-cache.js';
@@ -64,8 +64,7 @@ export class StreamResolver {
       const files = Array.isArray(manifest.files) ? manifest.files : [];
       if (!manifest.infoHash || !files.length) throw new Error('Torrent metadata contains no files');
       await this.engine.waitForPeers(manifest.infoHash, Math.min(4000, Math.max(1000, this.perCandidateTimeoutMs - 500)));
-      const audioExtensions = /\.(mp3|flac|m4a|aac|wav|ogg|opus|alac)$/i;
-      const file = query.type === 'music' ? files.find((item) => audioExtensions.test(item.name) || item.mimeType?.startsWith('audio/')) : files.find((item) => item.mimeType?.startsWith('video/') || item.mimeType?.startsWith('audio/')) ?? files[0];
+      const file = selectMediaFile(files, query);
       if (!file) throw new Error('Torrent contains no playable media file');
       if (!matchesRequestedContent(query, `${candidate.title} ${manifest.name}`, files)) throw new Error('Torrent content does not match the requested title, season, or episode');
       await this.engine.verifyDataFlow(manifest.infoHash, file.index, Math.min(5000, Math.max(1000, this.perCandidateTimeoutMs - 250)));
