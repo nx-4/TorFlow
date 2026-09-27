@@ -19,9 +19,27 @@ export function streamController(engine: TorrentEngine) {
       const range = parseRange(request.headers.range, handle.size);
       const start = range?.start ?? 0;
       const end = range?.end ?? handle.size - 1;
-      reply.header('Accept-Ranges', 'bytes').header('Content-Type', handle.file.mimeType).header('Content-Length', end - start + 1).header('Content-Range', `bytes ${start}-${end}/${handle.size}`).header('Cache-Control', 'no-store');
-      reply.code(range ? 206 : 200);
-      return reply.send(handle.createReadStream(range));
+
+      reply.header('Accept-Ranges', 'bytes')
+           .header('Content-Type', handle.file.mimeType)
+           .header('Content-Length', end - start + 1)
+           .header('Cache-Control', 'no-store');
+
+      if (range) {
+        reply.header('Content-Range', );
+        reply.code(206);
+      } else {
+        reply.code(200);
+      }
+
+      const stream = handle.createReadStream(range);
+      request.raw.on('close', () => {
+        if (typeof (stream as unknown as { destroy?: () => void }).destroy === 'function') {
+          (stream as unknown as { destroy: () => void }).destroy();
+        }
+      });
+
+      return reply.send(stream);
     } catch (error) {
       const message = (error as Error).message;
       return reply.code(message.includes('Range') ? 416 : 404).send({ error: message });
