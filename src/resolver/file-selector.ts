@@ -1,5 +1,6 @@
 import { FileManifest } from '../types.js';
 import { ResolverQuery } from './types.js';
+import { isTvProgram } from './tv-program.js';
 
 export interface SubtitleTrack { lang: string; label: string; isDefault: boolean; url: string; source: 'torrent' | 'opensubtitles'; fileIndex?: number; }
 const LANGS: Record<string, { code: string; label: string }> = {
@@ -54,9 +55,16 @@ export function selectMediaFile(files: FileManifest[], query: ResolverQuery): Fi
     return (mediaFiles.length ? mediaFiles : files).sort((a, b) => b.size - a.size)[0];
   }
 
-  // If specific episode requested (series, anime series, cartoon series)
-  if (query.episode !== undefined) {
-    const ep = String(query.episode);
+  // If TV program with date
+  if ((query.type === 'tv_program' || isTvProgram(query)) && query.date) {
+    const parts = query.date.split(/[-./ ]/).filter(Boolean);
+    const dateMatch = videoFiles.find((f) => parts.every((p) => f.name.includes(p)));
+    if (dateMatch) return dateMatch;
+  }
+
+  // If specific episode requested (series, anime series, cartoon series, tv programs)
+  if (query.episode !== undefined || query.part !== undefined) {
+    const ep = String(query.episode ?? query.part);
     const season = query.season !== undefined ? String(query.season) : undefined;
 
     const patterns: RegExp[] = [];

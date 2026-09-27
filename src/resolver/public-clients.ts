@@ -1,6 +1,7 @@
 import { IndexerClient } from './torznab-client.js';
 import { ResolverQuery, TorrentCandidate } from './types.js';
 import { queryText, cleanQueryTerm } from './ranking.js';
+import { isTvProgram, tvProgramQueryVariants } from './tv-program.js';
 
 const TRACKERS = ['udp://open.stealth.si:80/announce', 'udp://tracker.opentrackr.org:1337/announce', 'udp://tracker.openbittorrent.com:6969/announce', 'udp://tracker.torrent.eu.org:451/announce', 'udp://tracker.dler.org:6969/announce', 'udp://exodus.desync.com:6969/announce'];
 const resolverDebug = process.env.RESOLVER_DEBUG === 'true';
@@ -50,7 +51,7 @@ export class TorrentioClient implements IndexerClient {
   constructor(private readonly baseUrl = 'https://torrentio.strem.fun', private readonly timeoutMs = 3000) {}
   async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> {
     if (query.type === 'music') return [];
-    const kind = query.season !== undefined || query.episode !== undefined ? 'series' : 'movie';
+    const kind = (query.season !== undefined || query.episode !== undefined || query.type === 'series' || query.type === 'tv_program') ? 'series' : 'movie';
     const id = query.imdb_id ?? (query.tmdb_id ? `tmdb:${query.tmdb_id}` : encodeURIComponent(query.title ?? query.query ?? ''));
     const suffix = kind === 'series' ? `:${query.season ?? 1}:${query.episode ?? 1}` : '';
     const url = `${this.baseUrl}/stream/${kind}/${id}${suffix}.json`;
@@ -97,7 +98,8 @@ export class TorrentioClient implements IndexerClient {
 
 class HtmlTorrentClient implements IndexerClient {
   constructor(private readonly url: (query: ResolverQuery, text: string) => string, private readonly source: string, private readonly timeoutMs = 3000) {}
-  async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> { if (!isVideo(query)) return []; const settled = await Promise.allSettled(seriesQueryVariants(query).map(async (text) => { const response = await fetch(this.url(query, text), { signal: timeoutSignal(this.timeoutMs, signal), headers: { accept: 'text/html,application/xhtml+xml' } }); if (!response.ok) throw new Error(`${this.source} HTTP ${response.status}`); return parseHtmlResults(await response.text(), this.source, text); })); return settled.flatMap((result) => result.status === 'fulfilled' ? result.value : []); }
+  async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> { if (!isVideo(query)) return []; const variants = (query.type === 'tv_program' || isTvProgram(query)) ? tvProgramQueryVariants(query) : seriesQueryVariants(query);
+    const settled = await Promise.allSettled(variants.map(async (text) => { const response = await fetch(this.url(query, text), { signal: timeoutSignal(this.timeoutMs, signal), headers: { accept: 'text/html,application/xhtml+xml' } }); if (!response.ok) throw new Error(`${this.source} HTTP ${response.status}`); return parseHtmlResults(await response.text(), this.source, text); })); return settled.flatMap((result) => result.status === 'fulfilled' ? result.value : []); }
 }
 export class X1337Client extends HtmlTorrentClient { constructor(timeoutMs = 3000) { super((_q, text) => `https://1337x.to/search/${encodeURIComponent(text)}/1/`, '1337x', timeoutMs); } }
 export class EztvClient extends HtmlTorrentClient { constructor(timeoutMs = 3000) { super((_q, text) => `https://eztv.re/search/${encodeURIComponent(text)}`, 'eztv', timeoutMs); } }
@@ -108,7 +110,7 @@ export class ApibayVideoClient implements IndexerClient {
   constructor(private readonly baseUrl = 'https://apibay.org', private readonly timeoutMs = 3000) {}
   async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> {
     if (query.type === 'music') return [];
-    const textVariants = seriesQueryVariants(query);
+    const textVariants = (query.type === 'tv_program' || isTvProgram(query)) ? tvProgramQueryVariants(query) : seriesQueryVariants(query);
     const primary = queryText(query);
     const searchTerms = [...new Set([primary, ...textVariants])];
     const search = async (term: string): Promise<TorrentCandidate[]> => {

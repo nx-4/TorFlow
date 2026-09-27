@@ -124,9 +124,9 @@ describe('12-Point Comprehensive Internal Test Suite for TorFlow', () => {
       ];
 
       const ranked = rankCandidates(candidates, { title: 'Movie', preferredQuality: '1080p' });
-      expect(ranked[0].title).toContain('1080p');
-      expect(ranked[0].quality.resolution).toBe('1080p');
-      expect(ranked[0].quality.videoCodec).toBe('h264');
+      expect(ranked[0]?.title).toContain('1080p');
+      expect(ranked[0]?.quality.resolution).toBe('1080p');
+      expect(ranked[0]?.quality.videoCodec).toBe('h264');
     });
   });
 

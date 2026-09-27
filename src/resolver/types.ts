@@ -1,6 +1,6 @@
 export interface ResolverQuery {
   title?: string;
-  type?: 'movie' | 'series' | 'music';
+  type?: 'movie' | 'series' | 'music' | 'tv_program';
   query?: string;
   artist?: string;
   album?: string;
@@ -8,6 +8,10 @@ export interface ResolverQuery {
   year?: number;
   season?: number;
   episode?: number;
+  date?: string;
+  network?: string;
+  country?: string;
+  part?: number;
   imdb_id?: string;
   tmdb_id?: string;
   preferredQuality?: '2160p' | '1080p' | '720p' | '480p';
