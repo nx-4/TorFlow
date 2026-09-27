@@ -91,6 +91,48 @@ export class X1337Client extends HtmlTorrentClient { constructor(timeoutMs = 300
 export class EztvClient extends HtmlTorrentClient { constructor(timeoutMs = 3000) { super((_q, text) => `https://eztv.re/search/${encodeURIComponent(text)}`, 'eztv', timeoutMs); } }
 export class TorrentGalaxyClient extends HtmlTorrentClient { constructor(timeoutMs = 3000) { super((_q, text) => `https://torrentgalaxy.to/torrents.php?search=${encodeURIComponent(text)}`, 'torrentgalaxy', timeoutMs); } }
 
+
+export class ApibayVideoClient implements IndexerClient {
+  constructor(private readonly baseUrl = 'https://apibay.org', private readonly timeoutMs = 3000) {}
+  async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> {
+    if (query.type === 'music') return [];
+    const textVariants = seriesQueryVariants(query);
+    const primary = queryText(query);
+    const searchTerms = [...new Set([primary, ...textVariants])];
+    const search = async (term: string): Promise<TorrentCandidate[]> => {
+      try {
+        const response = await fetch(`${this.baseUrl}/q.php?q=${encodeURIComponent(term)}&cat=200`, {
+          signal: timeoutSignal(this.timeoutMs, signal),
+          headers: { accept: 'application/json' }
+        });
+        if (!response.ok) return [];
+        const payload = (await response.json()) as Array<{ name?: string; info_hash?: string; seeders?: number; leechers?: number; size?: string }>;
+        if (!Array.isArray(payload)) return [];
+        return payload
+          .filter((item) => item.name && item.name !== 'No results returned' && item.info_hash)
+          .map((item) => ({
+            magnet: magnet(item.info_hash!, item.name!),
+            title: item.name!,
+            seeders: Number(item.seeders ?? 0),
+            leechers: Number(item.leechers ?? 0),
+            size: Number(item.size ?? 0),
+            source: 'apibay'
+          }))
+          .filter((c) => c.magnet);
+      } catch {
+        return [];
+      }
+    };
+    const all: TorrentCandidate[] = [];
+    for (const term of searchTerms) {
+      const candidates = await search(term);
+      all.push(...candidates);
+      if (all.some((c) => c.seeders >= 5)) break;
+    }
+    return all;
+  }
+}
+
 export class AudioPublicClient implements IndexerClient {
   constructor(private readonly baseUrl = 'https://apibay.org', private readonly timeoutMs = 3000) {}
   async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> { if (query.type !== 'music') return []; const detailed = queryText(query); const terms = [...new Set([detailed, [query.artist, query.album, query.track, query.query].filter(Boolean).join(' '), query.track, query.album, query.artist].filter((value): value is string => Boolean(value)))]; const search = async (text: string): Promise<TorrentCandidate[]> => { const response = await fetch(`${this.baseUrl}/q.php?q=${encodeURIComponent(text)}`, { signal: timeoutSignal(this.timeoutMs, signal), headers: { accept: 'application/json' } }); if (!response.ok) throw new Error(`Audio indexer HTTP ${response.status}`); const payload = await response.json() as Array<{ name?: string; info_hash?: string; seeders?: number; leechers?: number; size?: string }>; return payload.map((item) => { const title = item.name ?? text; return { magnet: item.info_hash ? magnet(item.info_hash, title) : '', title, seeders: Number(item.seeders ?? 0), leechers: Number(item.leechers ?? 0), size: Number(item.size ?? 0), source: 'public-audio' }; }).filter((candidate) => candidate.magnet); }; const all: TorrentCandidate[] = []; for (const term of terms) { const found = await search(term); all.push(...found); if (found.some((candidate) => candidate.seeders >= 2)) break; } return all; }
@@ -100,5 +142,5 @@ export class MultiIndexerClient implements IndexerClient {
   constructor(private readonly clients: IndexerClient[]) {}
   async search(query: ResolverQuery, signal?: AbortSignal): Promise<TorrentCandidate[]> { const settled = await Promise.allSettled(this.clients.map((client) => client.search(query, signal))); const results = settled.flatMap((result, index) => { if (result.status === 'fulfilled') { debug('indexer_result', { index, count: result.value.length, seeders: result.value.slice(0, 5).map((candidate) => candidate.seeders) }); return result.value; } debug('indexer_error', { index, error: String(result.reason) }); return []; }); debug('indexer_aggregate', { count: results.length }); return results; }
 }
-export function createPublicIndexer(timeoutMs = 3000): IndexerClient { return new MultiIndexerClient([new YtsClient(undefined, timeoutMs), new TorrentioClient(undefined, timeoutMs), new X1337Client(timeoutMs), new EztvClient(timeoutMs), new TorrentGalaxyClient(timeoutMs), new AudioPublicClient(undefined, timeoutMs)]); }
+export function createPublicIndexer(timeoutMs = 3000): IndexerClient { return new MultiIndexerClient([new YtsClient(undefined, timeoutMs), new TorrentioClient(undefined, timeoutMs), new ApibayVideoClient(undefined, timeoutMs), new X1337Client(timeoutMs), new EztvClient(timeoutMs), new TorrentGalaxyClient(timeoutMs), new AudioPublicClient(undefined, timeoutMs)]); }
 export function buildPublicQuery(query: ResolverQuery): string { return queryText(query); }
