@@ -1,8 +1,8 @@
 import { QualityMetadata, RankedCandidate, ResolverQuery, TorrentCandidate } from './types.js';
 
-const resolutionScore: Record<QualityMetadata['resolution'], number> = { '2160p': 40, '1080p': 32, '720p': 22, '480p': 10, unknown: 0 };
-const codecScore: Record<QualityMetadata['videoCodec'], number> = { h264: 30, hevc: 16, vp9: 10, av1: 5, unknown: 0 };
-const audioScore: Record<QualityMetadata['audioCodec'], number> = { aac: 12, mp3: 10, ac3: 8, eac3: 6, opus: 4, unknown: 0 };
+const resolutionScore: Record<QualityMetadata['resolution'], number> = { '2160p': 40, '1080p': 35, '720p': 25, '480p': 10, unknown: 0 };
+const codecScore: Record<QualityMetadata['videoCodec'], number> = { h264: 30, hevc: 20, vp9: 10, av1: 5, unknown: 0 };
+const audioScore: Record<QualityMetadata['audioCodec'], number> = { aac: 15, mp3: 10, ac3: 8, eac3: 6, opus: 4, unknown: 0 };
 
 export function parseQuality(title: string): QualityMetadata {
   const normalized = title.toLowerCase();
@@ -21,18 +21,29 @@ export function parseAudioQuality(title: string): QualityMetadata {
   return { resolution: 'unknown', videoCodec: 'unknown', audioCodec: audioFormat === 'mp3-320' ? 'mp3' : audioFormat === 'opus' ? 'opus' : audioFormat === 'aac' ? 'aac' : 'unknown', audioFormat, bitrateKbps, score: formatScore[audioFormat] + Math.min(25, Math.round((bitrateKbps ?? 0) / 32)) };
 }
 
+export function cleanQueryTerm(term: string): string {
+  return term.replace(/[\(\)\[\]\{\}\:\_\-\.\,\?\!]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export function queryText(query: ResolverQuery): string {
-  const parts = [query.query, query.title, query.artist, query.album, query.track, query.year, query.season !== undefined ? `S${String(query.season).padStart(2, '0')}` : undefined, query.episode !== undefined ? `E${String(query.episode).padStart(2, '0')}` : undefined, query.imdb_id, query.tmdb_id];
+  const rawTitle = query.title ?? query.query ?? '';
+  const cleanedTitle = cleanQueryTerm(rawTitle);
+  const parts = [cleanedTitle || rawTitle, query.artist, query.album, query.track, query.year, query.season !== undefined ? `S${String(query.season).padStart(2, '0')}` : undefined, query.episode !== undefined ? `E${String(query.episode).padStart(2, '0')}` : undefined];
   return parts.filter(Boolean).join(' ');
 }
 
 export function rankCandidates(candidates: TorrentCandidate[], query?: ResolverQuery): RankedCandidate[] {
   const minimumSeeders = query?.type === 'music' ? 2 : 1;
   const seen = new Set<string>();
-  return candidates.filter((candidate) => { const key = candidate.magnet.toLowerCase(); if (!candidate.magnet.startsWith('magnet:?') || Number(candidate.seeders) < minimumSeeders || seen.has(key)) return false; seen.add(key); return true; }).map((candidate) => {
+  return candidates.filter((candidate) => {
+    const key = candidate.magnet.toLowerCase();
+    if (!candidate.magnet.startsWith('magnet:?') || Number(candidate.seeders) < minimumSeeders || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((candidate) => {
     const quality = query?.type === 'music' ? parseAudioQuality(candidate.title) : parseQuality(candidate.title);
     const seedScore = Math.min(100, Math.log10(candidate.seeders + 1) * 45);
-    const preferenceScore = query?.preferredQuality && quality.resolution === query.preferredQuality ? 18 : query?.preferredQuality && quality.resolution === 'unknown' ? 0 : 0;
+    const preferenceScore = query?.preferredQuality && quality.resolution === query.preferredQuality ? 30 : 0;
     return { ...candidate, seeders: Number(candidate.seeders), quality, score: Number((seedScore + quality.score + preferenceScore).toFixed(3)) };
   }).sort((a, b) => b.score - a.score || b.seeders - a.seeders);
 }
