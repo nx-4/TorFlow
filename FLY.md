@@ -39,6 +39,14 @@ fly deploy --app torflow --remote-only
 
 The `fly.toml` configuration keeps one machine running, disables automatic scale-to-zero, exposes port 8080, and checks `GET /ready` every 15 seconds. The image healthcheck also checks `GET /health`.
 
+TorFlow currently keeps active torrent metadata and stream handles in process memory. Keep exactly one Machine until shared session state is implemented; otherwise Fly can route metadata and stream requests to different Machines and the stream will return `Torrent metadata is not loaded`.
+
+```bash
+fly scale count 1 --app torflow-byre0g
+fly scale show --app torflow-byre0g
+fly machines list --app torflow-byre0g
+```
+
 ## Verify the deployment
 
 ```bash
