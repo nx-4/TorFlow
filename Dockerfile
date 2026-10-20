@@ -1,12 +1,14 @@
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ cmake pkg-config git ca-certificates \
+  && apt-get install -y --no-install-recommends python3 make g++ cmake pkg-config git ca-certificates libssl-dev \
   && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 COPY scripts ./scripts
 RUN npm ci
 RUN node -e "import('node-datachannel').then(() => console.log('node-datachannel native binary: ok'))"
+RUN npm rebuild utp-native --build-from-source \
+  && node -e "require('utp-native'); console.log('utp-native native binary: ok')"
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
