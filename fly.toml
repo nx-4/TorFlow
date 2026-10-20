@@ -15,6 +15,21 @@ primary_region = 'ams'
   auto_start_machines = true
   min_machines_running = 1
   processes = ['app']
+  kill_signal = 'SIGTERM'
+  kill_timeout = '30s'
+
+  [[http_service.checks]]
+    grace_period = '30s'
+    interval = '15s'
+    method = 'GET'
+    timeout = '5s'
+    path = '/ready'
+
+[env]
+  HOST = '0.0.0.0'
+  PORT = '8080'
+  NODE_ENV = 'production'
+  CACHE_DIR = '/tmp/torflow-cache'
 
 [[vm]]
   cpu_kind = 'shared'
