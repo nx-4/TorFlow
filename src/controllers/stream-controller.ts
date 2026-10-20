@@ -36,6 +36,11 @@ export function streamController(engine: TorrentEngine) {
         return reply.code(400).send({ error: 'Invalid file index' });
       }
 
+      if (engine.hasLiveTorrent(params.infoHash)) {
+        await engine.waitForPeers(params.infoHash, 15_000);
+        await engine.verifyDataFlow(params.infoHash, fileIndex, 15_000);
+      }
+
       handle = await engine.openStream(params.infoHash, fileIndex);
       const range = parseRange(request.headers.range, handle.size);
       const start = range?.start ?? 0;
@@ -73,6 +78,9 @@ export function streamController(engine: TorrentEngine) {
           reply.header('Content-Range', `bytes */${file.size}`);
         }
         return reply.code(416).send({ error: message });
+      }
+      if (/peer|data flow|swarm|timeout/i.test(message)) {
+        return reply.code(504).send({ error: message, code: 'SWARM_TIMEOUT' });
       }
       return reply.code(404).send({ error: message });
     }

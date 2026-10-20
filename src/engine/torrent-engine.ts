@@ -270,6 +270,10 @@ export class TorrentEngine extends EventEmitter {
     }
   }
 
+  hasLiveTorrent(infoHash: string): boolean {
+    return this.torrents.has(infoHash.toLowerCase());
+  }
+
   async verifyDataFlow(infoHash: string, fileIndex: number, timeoutMs = 5000): Promise<number> {
     const hash = infoHash.toLowerCase();
     const manifest = this.manifests.get(hash);
